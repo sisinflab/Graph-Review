@@ -96,7 +96,7 @@ class NARRE(RecMixin, BaseRecommenderModel):
             with tqdm(total=int(self._data.transactions // self._batch_size), disable=not self._verbose) as t:
                 for batch in self._sampler.step(self._data.transactions, self._batch_size):
                     steps += 1
-                    loss += self._model.train_step(batch)
+                    # loss += self._model.train_step(batch)
                     t.set_postfix({'loss': f'{loss / steps:.5f}'})
                     t.update()
 
@@ -139,3 +139,16 @@ class NARRE(RecMixin, BaseRecommenderModel):
                     self._params.best_iteration = it + 1
                 self.logger.info("******************************************")
                 self.best_metric_value = self._results[-1][0]["val_results"][self._validation_metric]
+
+    def get_loss(self):
+        if self._optimize_internal_loss:
+            return min(self._losses)
+        else:
+            return min([r[0]["val_results"][self._validation_metric] for r in self._results])
+
+    def get_best_arg(self):
+        if self._optimize_internal_loss:
+            val_results = np.argmin(self._losses)
+        else:
+            val_results = np.argmin([r[0]["val_results"][self._validation_metric] for r in self._results])
+        return val_results

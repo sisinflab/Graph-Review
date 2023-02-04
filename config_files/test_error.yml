@@ -29,6 +29,7 @@ experiment:
         verbose: True
       batch_size: 512
       batch_eval: 512
+      epochs: 10
     external.GCMC:
       meta:
         save_recs: False
