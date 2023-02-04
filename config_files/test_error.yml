@@ -1,0 +1,49 @@
+experiment:
+  backend: [tensorflow, pytorch]
+  data_config:
+    strategy: fixed
+    train_path: ../data/{0}/train.tsv
+    validation_path: ../data/{0}/valid.tsv
+    test_path: ../data/{0}/test.tsv
+    side_information:
+      - dataloader: WordsTextualAttributes
+        para: ../data/{0}/para
+        embedding_dim: 300
+        word2vec: word2vec-google-news-300
+        train_pkl: ../data/{0}/train
+        val_pkl: ../data/{0}/test
+        test_pkl: ../data/{0}/test
+  dataset: music
+  top_k: 50
+  evaluation:
+    cutoffs: [ 10, 20, 50 ]
+    simple_metrics: [Recall, MSE]
+  gpu: 0
+  external_models_path: ../external/models/__init__.py
+  models:
+    external.NARRE:
+      meta:
+        save_recs: False
+        validation_metric: MSE
+        validation_rate: 1
+        verbose: True
+      batch_size: 512
+      batch_eval: 512
+    external.GCMC:
+      meta:
+        save_recs: False
+        validation_metric: MSE
+        validation_rate: 1
+        verbose: True
+      lr: 0.001
+      epochs: 10
+      batch_size: 512
+      batch_eval: 512
+      factors: 64
+      conv_size: 500
+      dense_size: 75
+      n_conv: 1
+      n_dense: 1
+      relations: (1,2,3,4,5)
+      num_basis: 2
+      acc: sum

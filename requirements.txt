@@ -1,0 +1,10 @@
+hyperopt
+numpy
+tensorflow-macos
+tqdm
+scipy
+pandas
+Pillow
+PyYAML
+scikit_learn
+gensim
