@@ -1,6 +1,6 @@
 hyperopt
 numpy
-tensorflow-macos
+tensorflow==2.3.2
 tqdm
 scipy
 pandas
