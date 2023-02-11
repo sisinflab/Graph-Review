@@ -4,6 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 import numpy as np
 import torch
+import random
 
 from .pointwise_pos_neg_sampler import Sampler
 from elliot.recommender import BaseRecommenderModel
@@ -68,13 +69,15 @@ class GCMC(RecMixin, BaseRecommenderModel):
             ("_relations", "relations", "relations", "(1,2,3,4,5)", lambda x: list(make_tuple(x)),
              lambda x: self._batch_remove(str(x), " []").replace(",", "-")),
             ("_num_basis", "num_basis", "num_basis", 2, int, None),
-            ("_acc", "acc", "acc", 'stack', str, None)
+            ("_acc", "acc", "acc", 'stack', str, None),
+            ("_dropout", "dropout", "dropout", 0.7, float, None)
         ]
         self.autoset_params()
 
         np.random.seed(self._seed)
+        random.seed(self._seed)
 
-        self._sampler = Sampler(self._data.i_train_dict)
+        self._sampler = Sampler(self._batch_size, self._data.transactions)
 
         self.df_val_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
         self.df_test_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
@@ -91,7 +94,7 @@ class GCMC(RecMixin, BaseRecommenderModel):
         for k, v in data.test_dict.items():
             for kk, vv in v.items():
                 self.df_test_rat = pd.concat([self.df_test_rat,
-                                             pd.DataFrame({'user': k, 'item': int(kk), 'rating': vv}, index=[idx])])
+                                              pd.DataFrame({'user': k, 'item': int(kk), 'rating': vv}, index=[idx])])
                 idx += 1
 
         self.df_val_rat = self.df_val_rat.astype({'user': int, 'item': int, 'rating': float})
@@ -108,20 +111,23 @@ class GCMC(RecMixin, BaseRecommenderModel):
         self.df_val_rat = self.df_val_rat[self.df_val_rat['item'] <= self._num_items - 1]
         self.df_test_rat = self.df_test_rat[self.df_test_rat['item'] <= self._num_items - 1]
 
+        self._num_rel = len(self._relations)
+        self.users = list(range(self._num_users))
+        self.items = list(range(self._num_items))
+
+        self.original_adj_ratings = []
         row, col = self._data.sp_i_train.nonzero()
         col = [c + self._num_users for c in col]
         ratings = self._data.sp_i_train_ratings.data
         edge_index = np.array([row, col, ratings])
-        self.adj_ratings = []
-        self._num_rel = len(self._relations)
         for r in range(1, self._num_rel + 1):
             indices = edge_index[2, :] == r
             edge_index_0 = torch.tensor(edge_index[0, indices], dtype=torch.int64)
             edge_index_1 = torch.tensor(edge_index[1, indices], dtype=torch.int64)
-            self.adj_ratings.append(SparseTensor(row=torch.cat([edge_index_0, edge_index_1], dim=0),
-                                                 col=torch.cat([edge_index_1, edge_index_0], dim=0),
-                                                 sparse_sizes=(self._num_users + self._num_items,
-                                                               self._num_users + self._num_items)))
+            self.original_adj_ratings.append(SparseTensor(row=torch.cat([edge_index_0, edge_index_1], dim=0),
+                                                          col=torch.cat([edge_index_1, edge_index_0], dim=0),
+                                                          sparse_sizes=(self._num_users + self._num_items,
+                                                                        self._num_users + self._num_items)))
 
         self._model = GCMCModel(
             num_users=self._num_users,
@@ -133,10 +139,10 @@ class GCMC(RecMixin, BaseRecommenderModel):
             n_convolutional_layers=self._n_convolutional_layers,
             n_dense_layers=self._n_dense_layers,
             num_relations=self._num_rel,
-            relations = self._relations,
+            relations=self._relations,
             num_basis=self._num_basis,
-            adj_ratings=self.adj_ratings,
             accumulation=self._acc,
+            dropout=self._dropout,
             random_seed=self._seed
         )
 
@@ -145,6 +151,31 @@ class GCMC(RecMixin, BaseRecommenderModel):
         return "GCMC" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
+
+    def node_dropout(self):
+        row, col = self._data.sp_i_train.nonzero()
+        col = [c + self._num_users for c in col]
+        ratings = self._data.sp_i_train_ratings.data
+        sampled_edge_index = np.array([row, col, ratings])
+
+        users_to_drop = random.sample(self.users, round(self._num_users * self._dropout))
+        items_to_drop = random.sample(self.items, round(self._num_items * self._dropout))
+        mask_user = ~np.isin(sampled_edge_index[0], list(users_to_drop))
+        mask_item = ~np.isin(sampled_edge_index[1], list(items_to_drop))
+        sampled_edge_index = np.array(sampled_edge_index[:, mask_user & mask_item], dtype=np.int64)
+
+        adj_ratings = []
+
+        for r in range(1, self._num_rel + 1):
+            indices = sampled_edge_index[2, :] == r
+            edge_index_0 = torch.tensor(sampled_edge_index[0, indices], dtype=torch.int64)
+            edge_index_1 = torch.tensor(sampled_edge_index[1, indices], dtype=torch.int64)
+            adj_ratings.append(SparseTensor(row=torch.cat([edge_index_0, edge_index_1], dim=0),
+                                            col=torch.cat([edge_index_1, edge_index_0], dim=0),
+                                            sparse_sizes=(self._num_users + self._num_items,
+                                                          self._num_users + self._num_items)))
+
+        return adj_ratings
 
     def train(self):
         if self._restore:
@@ -159,10 +190,11 @@ class GCMC(RecMixin, BaseRecommenderModel):
             steps = 0
             np.random.shuffle(edge_index)
             edge_index = edge_index.astype(np.int)
+            adj_ratings = self.node_dropout()
             with tqdm(total=int(self._data.transactions // self._batch_size), disable=not self._verbose) as t:
-                for batch in self._sampler.step(edge_index, self._data.transactions, self._batch_size):
+                for batch in self._sampler.step(edge_index):
                     steps += 1
-                    current_loss = self._model.train_step(batch)
+                    current_loss = self._model.train_step(batch, adj_ratings)
                     loss += current_loss
                     t.set_postfix({'loss': f'{current_loss:.5f}'})
                     t.update()
@@ -172,7 +204,7 @@ class GCMC(RecMixin, BaseRecommenderModel):
     def get_recommendations(self, k: int = 100):
         predictions_test = []
         predictions_val = []
-        zu, zi = self._model.propagate_embeddings(evaluate=True)
+        zu, zi = self._model.propagate_embeddings(True, self.original_adj_ratings)
         val_len = len(self.df_val_rat)
         with tqdm(total=int(val_len // self._batch_eval), disable=not self._verbose) as t:
             for index, offset in enumerate(range(0, val_len, self._batch_eval)):

@@ -1,8 +1,6 @@
 import typing as t
 import numpy as np
-import pickle
 from types import SimpleNamespace
-import gensim.downloader
 
 from elliot.dataset.modular_loaders.abstract_loader import AbstractLoader
 
@@ -11,14 +9,21 @@ class WordsTextualAttributes(AbstractLoader):
     def __init__(self, users: t.Set, items: t.Set, ns: SimpleNamespace, logger: object):
         self.logger = logger
 
-        self.para = getattr(ns, "para", None)
-        self.embedding_dim = getattr(ns, "embedding_dim", None)
-        self.word2vec = getattr(ns, "word2vec", None)
-        self.train_pkl_path = getattr(ns, "train_pkl", None)
-        self.val_pkl_path = getattr(ns, "val_pkl", None)
-        self.test_pkl_path = getattr(ns, "test_pkl", None)
+        self.user_reviews_path = getattr(ns, "user_reviews", None)
+        self.item_reviews_path = getattr(ns, "item_reviews", None)
+        self.user_item2id_path = getattr(ns, "user_item2id", None)
+        self.item_user2id_path = getattr(ns, "item_user2id", None)
+        self.user_doc_path = getattr(ns, "user_doc", None)
+        self.item_doc_path = getattr(ns, "item_doc", None)
+        self.w2v_path = getattr(ns, "w2v", None)
 
-        self.model = gensim.downloader.load(self.word2vec)
+        self.user_reviews = None
+        self.item_reviews = None
+        self.user_item2id = None
+        self.item_user2id = None
+        self.user_doc = None
+        self.item_doc = None
+        self.w2v = None
 
         self.users = users
         self.items = items
@@ -34,37 +39,12 @@ class WordsTextualAttributes(AbstractLoader):
         ns = SimpleNamespace()
         ns.__name__ = "WordsTextualAttributes"
         ns.object = self
+        self.user_reviews = np.load(self.user_reviews_path)
+        self.item_reviews = np.load(self.item_reviews_path)
+        self.user_item2id = np.load(self.user_item2id_path)
+        self.item_user2id = np.load(self.item_user2id_path)
+        self.user_doc = np.load(self.user_doc_path)
+        self.item_doc = np.load(self.item_doc_path)
+        self.w2v = np.load(self.w2v_path)
 
         return ns
-
-    def get_features(self):
-        para_pkl_file = open(self.para, 'rb')
-        para = pickle.load(para_pkl_file)
-        para_pkl_file.close()
-
-        vocabulary_user = para['user_vocab']
-        vocabulary_item = para['item_vocab']
-
-        initWU = np.random.uniform(-1.0, 1.0, (len(vocabulary_user), self.embedding_dim))
-        not_found_user = 0
-        for k, v in vocabulary_user.items():
-            try:
-                initWU[v] = self.model.get_vector(k, norm=True)
-            except KeyError:
-                not_found_user += 1
-                pass
-
-        initWI = np.random.uniform(-1.0, 1.0, (len(vocabulary_item), self.embedding_dim))
-        not_found_item = 0
-        for k, v in vocabulary_item.items():
-            try:
-                initWI[v] = self.model.get_vector(k, norm=True)
-            except KeyError:
-                not_found_item += 1
-                pass
-
-        self.logger.info(f"Number of words not found in user vocabulary: {not_found_user}")
-        self.logger.info(f"Number of words not found in item vocabulary: {not_found_item}")
-
-        return initWU, initWI, para['u_text'], para['i_text']
-

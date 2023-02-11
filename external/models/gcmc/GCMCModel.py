@@ -21,7 +21,7 @@ class GCMCModel(torch.nn.Module, ABC):
                  num_relations,
                  relations,
                  num_basis,
-                 adj_ratings,
+                 dropout,
                  accumulation,
                  random_seed,
                  name="GCMC",
@@ -50,6 +50,7 @@ class GCMCModel(torch.nn.Module, ABC):
         self.num_relations = num_relations
         self.relations = torch.tensor(relations, dtype=torch.float64, device=self.device)
         self.num_basis = num_basis
+        self.dropout = dropout
 
         if accumulation not in ['stack', 'sum']:
             raise NotImplementedError('This accumulation method has not been implemented yet!')
@@ -58,8 +59,6 @@ class GCMCModel(torch.nn.Module, ABC):
         self.dense_layer_size = [self.convolutional_layer_size[-1] if self.accumulation == 'sum' else
                                  self.convolutional_layer_size[-1] * self.num_relations] + (
                                             [dense_layer_size] * self.n_dense_layers)
-
-        self.adj_ratings = adj_ratings
 
         self.Gu = torch.nn.Parameter(
             torch.nn.init.xavier_normal_(torch.empty((self.num_users, self.embed_k))))
@@ -106,7 +105,7 @@ class GCMCModel(torch.nn.Module, ABC):
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
-    def propagate_embeddings(self, evaluate=False):
+    def propagate_embeddings(self, evaluate, adjacency_matrix):
         current_embeddings = []
         for _ in range(self.num_relations):
             current_embeddings += [torch.cat((self.Gu, self.Gi), 0)]
@@ -118,11 +117,11 @@ class GCMCModel(torch.nn.Module, ABC):
                     with torch.no_grad():
                         current_embeddings[r] = torch.relu(list(
                             self.convolutions[r].children()
-                        )[layer](current_embeddings[r].to(self.device), self.adj_ratings[r].to(self.device)))
+                        )[layer](current_embeddings[r].to(self.device), adjacency_matrix[r].to(self.device)))
                 else:
                     current_embeddings[r] = torch.relu(list(
                         self.convolutions[r].children()
-                    )[layer](current_embeddings[r].to(self.device), self.adj_ratings[r].to(self.device)))
+                    )[layer](current_embeddings[r].to(self.device), adjacency_matrix[r].to(self.device)))
 
         if self.accumulation == 'stack':
             current_embeddings = torch.cat(current_embeddings, 1)
@@ -136,7 +135,8 @@ class GCMCModel(torch.nn.Module, ABC):
             with torch.no_grad():
                 current_embeddings = self.dense_network(current_embeddings.to(self.device))
         else:
-            current_embeddings = self.dense_network(current_embeddings.to(self.device))
+            current_embeddings = torch.nn.functional.dropout(self.dense_network(current_embeddings.to(self.device)),
+                                                             p=self.dropout)
 
         if evaluate:
             self.convolutions.train()
@@ -167,8 +167,8 @@ class GCMCModel(torch.nn.Module, ABC):
         xui, _ = self.forward((zu, zi))
         return xui
 
-    def train_step(self, batch):
-        zu, zi = self.propagate_embeddings()
+    def train_step(self, batch, adj_matrix):
+        zu, zi = self.propagate_embeddings(False, adj_matrix)
         user, item, r = batch
         xui, pui = self.forward(inputs=(zu[user], zi[item]))
 
@@ -181,8 +181,3 @@ class GCMCModel(torch.nn.Module, ABC):
         self.optimizer.step()
 
         return loss.detach().cpu().numpy()
-
-    def get_top_k(self, preds, train_mask, k=100):
-        return torch.topk(torch.where(torch.tensor(train_mask).to(self.device),
-                                      torch.tensor(preds).to(self.device),
-                                      torch.tensor(-np.inf, dtype=torch.double).to(self.device)), k=k, sorted=True)

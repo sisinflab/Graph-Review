@@ -6,6 +6,7 @@ from .RMGModel import RMGModel
 from .sampler import *
 
 import numpy as np
+import pandas as pd
 
 
 class RMG(RecMixin, BaseRecommenderModel):
@@ -43,6 +44,38 @@ class RMG(RecMixin, BaseRecommenderModel):
             ("_loader", "loader", "l", 'WordsTextualAttributesPreprocessed', str, None)
         ]
         self.autoset_params()
+
+        self.df_val_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
+        self.df_test_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
+
+        # create dataframes for validation and test set with user-item-rating
+        idx = 0
+        for k, v in data.val_dict.items():
+            for kk, vv in v.items():
+                self.df_val_rat = pd.concat([self.df_val_rat,
+                                             pd.DataFrame({'user': k, 'item': int(kk), 'rating': vv}, index=[idx])])
+                idx += 1
+
+        idx = 0
+        for k, v in data.test_dict.items():
+            for kk, vv in v.items():
+                self.df_test_rat = pd.concat([self.df_test_rat,
+                                              pd.DataFrame({'user': k, 'item': int(kk), 'rating': vv}, index=[idx])])
+                idx += 1
+
+        self.df_val_rat = self.df_val_rat.astype({'user': int, 'item': int, 'rating': float})
+        self.df_test_rat = self.df_test_rat.astype({'user': int, 'item': int, 'rating': float})
+
+        self.df_val_rat['user'] = self.df_val_rat['user'].map(data.public_users)
+        self.df_val_rat['item'] = self.df_val_rat['item'].map(data.public_items)
+        self.df_test_rat['user'] = self.df_test_rat['user'].map(data.public_users)
+        self.df_test_rat['item'] = self.df_test_rat['item'].map(data.public_items)
+
+        # remove interactions whose user and/or item is not in the training set
+        self.df_val_rat = self.df_val_rat[self.df_val_rat['user'] <= self._num_users - 1]
+        self.df_test_rat = self.df_test_rat[self.df_test_rat['user'] <= self._num_users - 1]
+        self.df_val_rat = self.df_val_rat[self.df_val_rat['item'] <= self._num_items - 1]
+        self.df_test_rat = self.df_test_rat[self.df_test_rat['item'] <= self._num_items - 1]
 
         row, col = data.sp_i_train.nonzero()
         self.row = np.array(row)
@@ -111,54 +144,89 @@ class RMG(RecMixin, BaseRecommenderModel):
             self.evaluate(it, loss / (it + 1))
 
     def get_recommendations(self, k: int = 100):
-        predictions_top_k_test = {}
-        predictions_top_k_val = {}
-
-        self.logger.info('Starting pre-computation for all users...')
-        out_users = np.empty((self._num_users, self._factors * 4))
-        with tqdm(total=int(self._num_users // self._batch_eval), disable=not self._verbose) as t:
-            for start_batch in range(0, self._num_users, self._batch_eval):
-                stop_batch = min(start_batch + self._batch_eval, self._num_users)
+        predictions_test = []
+        predictions_val = []
+        val_len = len(self.df_val_rat)
+        with tqdm(total=int(val_len // self._batch_eval), disable=not self._verbose) as t:
+            for index, offset in enumerate(range(0, val_len, self._batch_eval)):
+                offset_stop = min(offset + self._batch_eval, val_len)
+                current_df = self.df_val_rat[offset:offset_stop]
+                users = current_df['user'].tolist()
                 inputs = [
-                    self._interactions_textual.object.all_user_texts_features[start_batch: stop_batch],
-                    self._interactions_textual.object.user_to_item_to_user_features[start_batch: stop_batch],
-                    self._interactions_textual.object.user_to_item_features[start_batch: stop_batch],
-                    np.arange(start_batch, stop_batch)
+                    self._interactions_textual.object.all_user_texts_features[users],
+                    self._interactions_textual.object.user_to_item_to_user_features[users],
+                    self._interactions_textual.object.user_to_item_features[users],
+                    np.array(users)
                 ]
-                out_users[start_batch: stop_batch] = self._model.model_user(inputs, training=False)
-                t.update()
-        self.logger.info('Pre-computation for all users is complete!')
-
-        self.logger.info('Starting pre-computation for all items...')
-        out_items = np.empty((self._num_items, self._factors * 4))
-        with tqdm(total=int(self._num_items // self._batch_eval), disable=not self._verbose) as t:
-            for start_batch in range(0, self._num_items, self._batch_eval):
-                stop_batch = min(start_batch + self._batch_eval, self._num_items)
+                out_users = self._model.model_user(inputs, training=False)
+                items = current_df['item'].tolist()
                 inputs = [
-                    self._interactions_textual.object.all_item_texts_features[start_batch: stop_batch],
-                    self._interactions_textual.object.item_to_user_to_item_features[start_batch: stop_batch],
-                    self._interactions_textual.object.item_to_user_features[start_batch: stop_batch],
-                    np.arange(start_batch, stop_batch)
+                    self._interactions_textual.object.all_item_texts_features[items],
+                    self._interactions_textual.object.item_to_user_to_item_features[items],
+                    self._interactions_textual.object.item_to_user_features[items],
+                    np.array(items)
                 ]
-                out_items[start_batch: stop_batch] = self._model.model_item(inputs, training=False)
+                out_items = self._model.model_item(inputs, training=False)
+                p = self._model.predict([out_users, out_items])
+                predictions_val += p.numpy().tolist()
                 t.update()
-        self.logger.info('Pre-computation for all items is complete!')
+        test_len = len(self.df_test_rat)
+        with tqdm(total=int(test_len // self._batch_eval), disable=not self._verbose) as t:
+            for index, offset in enumerate(range(0, test_len, self._batch_eval)):
+                offset_stop = min(offset + self._batch_eval, test_len)
+                current_df = self.df_test_rat[offset:offset_stop]
+                users = current_df['user'].tolist()
+                inputs = [
+                    self._interactions_textual.object.all_user_texts_features[users],
+                    self._interactions_textual.object.user_to_item_to_user_features[users],
+                    self._interactions_textual.object.user_to_item_features[users],
+                    np.array(users)
+                ]
+                out_users = self._model.model_user(inputs, training=False)
+                items = current_df['item'].tolist()
+                inputs = [
+                    self._interactions_textual.object.all_item_texts_features[items],
+                    self._interactions_textual.object.item_to_user_to_item_features[items],
+                    self._interactions_textual.object.item_to_user_features[items],
+                    np.array(items)
+                ]
+                out_items = self._model.model_item(inputs, training=False)
+                p = self._model.predict([out_users, out_items])
+                predictions_test += p.numpy().tolist()
+                t.update()
+        return predictions_val, predictions_test
 
-        self.logger.info('Starting predictions on all users/items pairs...')
-        with tqdm(total=int(self._num_users // self._batch_eval), disable=not self._verbose) as t:
-            for index, offset in enumerate(range(0, self._num_users, self._batch_eval)):
-                offset_stop = min(offset + self._batch_eval, self._num_users)
-                predictions = np.empty((offset_stop - offset, self._num_items))
-                for item_index, item_offset in enumerate(range(0, self._num_items, self._batch_eval)):
-                    item_offset_stop = min(item_offset + self._batch_eval, self._num_items)
-                    user_range = np.repeat(np.arange(offset, offset_stop), repeats=item_offset_stop - item_offset)
-                    item_range = np.tile(np.arange(item_offset, item_offset_stop), reps=offset_stop - offset)
-                    inputs = [out_users[user_range], out_items[item_range]]
-                    p = self._model.predict(inputs, offset_stop - offset, item_offset_stop - item_offset)
-                    predictions[:, item_offset: item_offset_stop] = p.numpy()
-                recs_val, recs_test = self.process_protocol(k, predictions, offset, offset_stop)
-                predictions_top_k_val.update(recs_val)
-                predictions_top_k_test.update(recs_test)
-                t.update()
-        self.logger.info('Predictions on all users/items pairs is complete!')
-        return predictions_top_k_val, predictions_top_k_test
+    def evaluate(self, it=None, loss=0.0):
+        if (it is None) or (not (it + 1) % self._validation_rate):
+            predictions_val, predictions_test = self.get_recommendations()
+            true_val, true_test = self.df_val_rat['rating'].to_numpy(), self.df_test_rat['rating'].to_numpy()
+            result_dict = self.evaluator.eval_error(np.array(predictions_val), true_val, np.array(predictions_test),
+                                                    true_test)
+
+            self._losses.append(loss)
+
+            self._results.append(result_dict)
+
+            if it is not None:
+                self.logger.info(f'Epoch {(it + 1)}/{self._epochs} loss {loss:.5f}')
+            else:
+                self.logger.info(f'Finished')
+
+            if (len(self._results) - 1) == self.get_best_arg():
+                if it is not None:
+                    self._params.best_iteration = it + 1
+                self.logger.info("******************************************")
+                self.best_metric_value = self._results[-1][0]["val_results"][self._validation_metric]
+
+    def get_loss(self):
+        if self._optimize_internal_loss:
+            return min(self._losses)
+        else:
+            return min([r[0]["val_results"][self._validation_metric] for r in self._results])
+
+    def get_best_arg(self):
+        if self._optimize_internal_loss:
+            val_results = np.argmin(self._losses)
+        else:
+            val_results = np.argmin([r[0]["val_results"][self._validation_metric] for r in self._results])
+        return val_results
