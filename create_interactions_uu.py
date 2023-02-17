@@ -125,7 +125,7 @@ for t in top_k:
     R_U[np.arange(R_U.shape[0])[:, None], indices_one] = 1.0
     R_U[np.arange(R_U.shape[0])[:, None], indices_zero] = 0.0
     R_U = scipy.sparse.coo_matrix(R_U)
-    scipy.sparse.save_npz(f'./data/{dataset}/uu_dot_{top_k}.npz', R_U)
+    scipy.sparse.save_npz(f'./data/{dataset}/uu_dot_{t}.npz', R_U)
 
     R_U = scipy.sparse.coo_matrix((min_values, (user_rows_sim, user_cols_sim)),
                                   shape=(initial_num_users, initial_num_users)).todense()
@@ -163,7 +163,7 @@ for t in top_k:
     R_U[np.arange(R_U.shape[0])[:, None], indices_one] = 1.0
     R_U[np.arange(R_U.shape[0])[:, None], indices_zero] = 0.0
     R_U = scipy.sparse.coo_matrix(R_U)
-    scipy.sparse.save_npz(f'./data/{dataset}/uu_rat_dot_{top_k}.npz', R_U)
+    scipy.sparse.save_npz(f'./data/{dataset}/uu_rat_dot_{t}.npz', R_U)
 
     R_U = scipy.sparse.coo_matrix((rat_min_values, (user_rows_sim, user_cols_sim)),
                                   shape=(initial_num_users, initial_num_users)).todense()
@@ -201,7 +201,7 @@ for t in top_k:
     R_U[np.arange(R_U.shape[0])[:, None], indices_one] = 1.0
     R_U[np.arange(R_U.shape[0])[:, None], indices_zero] = 0.0
     R_U = scipy.sparse.coo_matrix(R_U)
-    scipy.sparse.save_npz(f'./data/{dataset}/uu_no_coeff_{top_k}.npz', R_U)
+    scipy.sparse.save_npz(f'./data/{dataset}/uu_no_coeff_{t}.npz', R_U)
 
     R_U = scipy.sparse.coo_matrix((rat_no_coeff_values, (user_rows_sim, user_cols_sim)),
                                   shape=(initial_num_users, initial_num_users)).todense()
