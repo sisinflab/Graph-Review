@@ -9,20 +9,19 @@ import numpy as np
 import random
 
 
-class EGCFv2Model(torch.nn.Module, ABC):
+class EGCFModel(torch.nn.Module, ABC):
     def __init__(self,
                  num_users,
                  num_items,
                  learning_rate,
                  embed_k,
-                 l_w,
                  n_layers,
                  edge_features,
                  node_node_adj,
                  rows,
                  cols,
                  random_seed,
-                 name="EGCFv2",
+                 name="EGCF",
                  **kwargs
                  ):
         super().__init__()
@@ -34,6 +33,7 @@ class EGCFv2Model(torch.nn.Module, ABC):
         torch.cuda.manual_seed(random_seed)
         torch.cuda.manual_seed_all(random_seed)
         torch.backends.cudnn.deterministic = True
+        torch.use_deterministic_algorithms(True)
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -41,26 +41,42 @@ class EGCFv2Model(torch.nn.Module, ABC):
         self.num_items = num_items
         self.embed_k = embed_k
         self.learning_rate = learning_rate
-        self.l_w = l_w
         self.n_layers = n_layers
-        self.alpha = torch.tensor([1 / (k + 1) for k in range(self.n_layers + 1)])
 
         self.node_node_adj = node_node_adj
         self.rows, self.cols = torch.tensor(rows, dtype=torch.int64), torch.tensor(cols, dtype=torch.int64)
 
         self.Gu = torch.nn.Parameter(
-            torch.nn.init.xavier_normal_(torch.empty((self.num_users, self.embed_k))))
+            torch.nn.init.xavier_uniform_(torch.empty((self.num_users, self.embed_k))))
         self.Gu.to(self.device)
         self.Gi = torch.nn.Parameter(
-            torch.nn.init.xavier_normal_(torch.empty((self.num_items, self.embed_k))))
+            torch.nn.init.xavier_uniform_(torch.empty((self.num_items, self.embed_k))))
         self.Gi.to(self.device)
 
         self.Gut = torch.nn.Parameter(
-            torch.nn.init.xavier_normal_(torch.empty((self.num_users, self.embed_k))))
+            torch.nn.init.xavier_uniform_(torch.empty((self.num_users, self.embed_k))))
         self.Gut.to(self.device)
         self.Git = torch.nn.Parameter(
-            torch.nn.init.xavier_normal_(torch.empty((self.num_items, self.embed_k))))
+            torch.nn.init.xavier_uniform_(torch.empty((self.num_items, self.embed_k))))
         self.Git.to(self.device)
+
+        self.Bu = torch.nn.Embedding(self.num_users, 1)
+        torch.nn.init.xavier_normal_(self.Bu.weight)
+        self.Bu.to(self.device)
+        self.Bi = torch.nn.Embedding(self.num_items, 1)
+        torch.nn.init.xavier_normal_(self.Bi.weight)
+        self.Bi.to(self.device)
+
+        self.But = torch.nn.Embedding(self.num_users, 1)
+        torch.nn.init.xavier_normal_(self.But.weight)
+        self.But.to(self.device)
+        self.Bit = torch.nn.Embedding(self.num_items, 1)
+        torch.nn.init.xavier_normal_(self.Bit.weight)
+        self.Bit.to(self.device)
+
+        self.Mu = torch.nn.Parameter(
+            torch.nn.init.xavier_normal_(torch.empty((1, 1))))
+        self.Mu.to(self.device)
 
         self.edge_embeddings_interactions = torch.tensor(edge_features, dtype=torch.float32, device=self.device)
         self.edge_embeddings_interactions = torch.cat([self.edge_embeddings_interactions,
@@ -94,96 +110,99 @@ class EGCFv2Model(torch.nn.Module, ABC):
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
+        self.loss = torch.nn.MSELoss()
+
     def propagate_embeddings(self, evaluate=False):
-        node_node_collab_emb = [torch.cat((self.Gu.to(self.device), self.Gi.to(self.device)), 0)]
-        node_node_textual_emb = [torch.cat((self.Gut.to(self.device), self.Git.to(self.device)), 0)]
+        node_node_collab_emb = torch.cat((self.Gu.to(self.device), self.Gi.to(self.device)), 0)
+        node_node_textual_emb = torch.cat((self.Gut.to(self.device), self.Git.to(self.device)), 0)
         edge_embeddings_interactions_projected = self.projection(self.edge_embeddings_interactions)
 
         for layer in range(self.n_layers):
             user_item_embeddings_interactions = torch.cat([
-                node_node_textual_emb[layer][:self.num_users][self.rows],
-                node_node_textual_emb[layer][self.num_users:][self.cols - self.num_users]], dim=0)
+                node_node_textual_emb[:self.num_users][self.rows],
+                node_node_textual_emb[self.num_users:][self.cols - self.num_users]], dim=0)
             item_user_embeddings_interactions = torch.cat([
-                node_node_textual_emb[layer][self.num_users:][self.cols - self.num_users],
-                node_node_textual_emb[layer][:self.num_users][self.rows]], dim=0)
+                node_node_textual_emb[self.num_users:][self.cols - self.num_users],
+                node_node_textual_emb[:self.num_users][self.rows]], dim=0)
 
             if evaluate:
                 self.node_node_collab_network.eval()
                 self.node_node_textual_network.eval()
                 with torch.no_grad():
                     # node-node collaborative graph
-                    node_node_collab_emb += [list(
+                    node_node_collab_emb = list(
                         self.node_node_collab_network.children()
-                    )[layer](node_node_collab_emb[layer].to(self.device),
-                             self.node_node_adj.to(self.device))]
+                    )[layer](node_node_collab_emb.to(self.device),
+                             self.node_node_adj.to(self.device))
 
                     # node-node textual graph
-                    node_node_textual_emb += [list(
+                    node_node_textual_emb = list(
                         self.node_node_textual_network.children()
-                    )[layer](node_node_textual_emb[layer].to(self.device),
+                    )[layer](node_node_textual_emb.to(self.device),
                              self.node_node_adj.to(self.device),
                              user_item_embeddings_interactions.to(self.device),
                              item_user_embeddings_interactions.to(self.device),
-                             edge_embeddings_interactions_projected.to(self.device))]
+                             edge_embeddings_interactions_projected.to(self.device))
                 self.node_node_collab_network.train()
                 self.node_node_textual_network.train()
             else:
                 # node-node collaborative graph
-                node_node_collab_emb += [list(
+                node_node_collab_emb = list(
                     self.node_node_collab_network.children()
-                )[layer](node_node_collab_emb[layer].to(self.device),
-                         self.node_node_adj.to(self.device))]
+                )[layer](node_node_collab_emb.to(self.device),
+                         self.node_node_adj.to(self.device))
 
                 # node-node textual graph
-                node_node_textual_emb += [list(
+                node_node_textual_emb = list(
                     self.node_node_textual_network.children()
-                )[layer](node_node_textual_emb[layer].to(self.device),
+                )[layer](node_node_textual_emb.to(self.device),
                          self.node_node_adj.to(self.device),
                          user_item_embeddings_interactions.to(self.device),
                          item_user_embeddings_interactions.to(self.device),
-                         edge_embeddings_interactions_projected.to(self.device))]
+                         edge_embeddings_interactions_projected.to(self.device))
 
-        node_node_collab_emb = sum([node_node_collab_emb[k] * self.alpha[k] for k in range(len(node_node_collab_emb))])
-        node_node_textual_emb = sum(
-            [node_node_textual_emb[k] * self.alpha[k] for k in range(len(node_node_textual_emb))])
         gu, gi = torch.split(node_node_collab_emb, [self.num_users, self.num_items], 0)
         gut, git = torch.split(node_node_textual_emb, [self.num_users, self.num_items], 0)
         return gu, gi, gut, git
 
     def forward(self, inputs, **kwargs):
-        gu, gi, gut, git = inputs
+        gu, gi, gut, git, bu, bi, but, bit = inputs
         gamma_u = torch.squeeze(gu).to(self.device)
         gamma_i = torch.squeeze(gi).to(self.device)
+
         gamma_u_t = torch.squeeze(gut).to(self.device)
         gamma_i_t = torch.squeeze(git).to(self.device)
 
-        xui = torch.sum(gamma_u * gamma_i, 1) + torch.sum(gamma_u_t * gamma_i_t, 1)
+        beta_u = torch.squeeze(bu).to(self.device)
+        beta_i = torch.squeeze(bi).to(self.device)
+
+        beta_u_t = torch.squeeze(but).to(self.device)
+        beta_i_t = torch.squeeze(bit).to(self.device)
+
+        mu = torch.squeeze(self.Mu).to(self.device)
+
+        xui = torch.sum(gamma_u * gamma_i, 1) + torch.sum(gamma_u_t * gamma_i_t, 1) + beta_u + beta_i + \
+              beta_u_t + beta_i_t + mu
 
         return xui
 
-    def predict(self, gu, gi, gut, git, **kwargs):
-        return torch.matmul(gu.to(self.device), torch.transpose(gi.to(self.device), 0, 1)) + \
-               torch.matmul(gut.to(self.device), torch.transpose(git.to(self.device), 0, 1))
+    def predict(self, gu, gi, gut, git, users, items, **kwargs):
+        rui = self.forward(inputs=(gu, gi, gut, git,
+                                   self.Bu.weight[users], self.Bi.weight[items],
+                                   self.But.weight[users], self.Bit.weight[items]))
+        return rui
 
     def train_step(self, batch):
         gu, gi, gut, git = self.propagate_embeddings()
-        user, pos, neg = batch
-        xu_pos = self.forward(inputs=(gu[user[:, 0]], gi[pos[:, 0]], gut[user[:, 0]], git[pos[:, 0]]))
-        xu_neg = self.forward(inputs=(gu[user[:, 0]], gi[neg[:, 0]], gut[user[:, 0]], git[neg[:, 0]]))
-        difference = torch.clamp(xu_pos - xu_neg, -80.0, 1e8)
-        loss = torch.sum(self.softplus(-difference))
-        reg_loss = self.l_w * (torch.norm(self.Gu, 2) +
-                               torch.norm(self.Gi, 2) +
-                               torch.norm(self.Gut, 2) +
-                               torch.norm(self.Git, 2)).sum(dim=0)
-        loss += reg_loss
+        user, item, r = batch
+        rui = self.forward(inputs=(gu[user], gi[item], gut[user], git[item],
+                                   self.Bu.weight[user], self.Bi.weight[item],
+                                   self.But.weight[user], self.Bit.weight[item]))
+
+        loss = self.loss(torch.squeeze(rui), torch.tensor(r, device=self.device, dtype=torch.float))
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
         return loss.detach().cpu().numpy()
-
-    def get_top_k(self, preds, train_mask, k=100):
-        return torch.topk(torch.where(torch.tensor(train_mask).to(self.device), preds.to(self.device),
-                                      torch.tensor(-np.inf).to(self.device)), k=k, sorted=True)

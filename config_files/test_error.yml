@@ -6,14 +6,27 @@ experiment:
     validation_path: ../data/{0}/Val.tsv
     test_path: ../data/{0}/Test.tsv
     side_information:
-      - dataloader: WordsTextualAttributesPreprocessed
-        all_item_texts: ../data/{0}/all_item_texts.npy
-        all_user_texts: ../data/{0}/all_user_texts.npy
-        embed_vocabulary: ../data/{0}/embed_vocabulary.npy
-        item_to_user: ../data/{0}/item_to_user.npy
-        item_to_user_to_item: ../data/{0}/item_to_user_to_item.npy
-        user_to_item: ../data/{0}/user_to_item.npy
-        user_to_item_to_user: ../data/{0}/user_to_item_to_user.npy
+#      - dataloader: InteractionsTextualAttributes
+#        interactions_features: ../data/{0}/reviews/
+#        interactions: ../data/{0}/interactions.tsv
+      - dataloader: SentimentInteractionsTextualAttributesUUII
+        uu_dot: ../data/{0}/uu_dot_10.npz
+        uu_max: ../data/{0}/uu_max_10.npz
+        uu_min: ../data/{0}/uu_min_10.npz
+        uu_global: ../data/{0}/uu_global_10.npz
+        ii_dot: ../data/{0}/ii_dot_10.npz
+        ii_max: ../data/{0}/ii_max_10.npz
+        ii_min: ../data/{0}/ii_min_10.npz
+        ii_global: ../data/{0}/ii_global_10.npz
+#    side_information:
+#      - dataloader: WordsTextualAttributesPreprocessed
+#        all_item_texts: ../data/{0}/all_item_texts.npy
+#        all_user_texts: ../data/{0}/all_user_texts.npy
+#        embed_vocabulary: ../data/{0}/embed_vocabulary.npy
+#        item_to_user: ../data/{0}/item_to_user.npy
+#        item_to_user_to_item: ../data/{0}/item_to_user_to_item.npy
+#        user_to_item: ../data/{0}/user_to_item.npy
+#        user_to_item_to_user: ../data/{0}/user_to_item_to_user.npy
   dataset: Digital_Music
   top_k: 50
   evaluation:
@@ -22,32 +35,154 @@ experiment:
   gpu: 0
   external_models_path: ../external/models/__init__.py
   models:
-    external.RMG:
+    external.UUIIGCMC:
       meta:
-        save_recs: False
-        validation_metric: MSE
-        validation_rate: 1
+        hyper_opt_alg: grid
         verbose: True
-      d: 0.2
-      epochs: 400
+        save_weights: False
+        save_recs: False
+        validation_rate: 1
+        validation_metric: MSE
+        restore: False
+      epochs: 200
       batch_size: 256
-      be: 16
-    external.GCMC:
-      meta:
-        save_recs: False
-        validation_metric: MSE
-        validation_rate: 1
-        verbose: True
+      factors: 32
+      # lr: [ 0.0001, 0.0005, 0.001, 0.005, 0.01 ]
       lr: 0.001
-      epochs: 20
-      batch_size: 128
-      batch_eval: 512
-      factors: 64
-      conv_size: 64
-      dense_size: 64
+      n_uu_layers: 3
+      n_ii_layers: 3
+      alpha: 0.7
+      beta: 0.7
+      sim_uu: dot
+      sim_ii: dot
+      conv_size: 32
+      dense_size: 32
       n_conv: 1
       n_dense: 1
       relations: (1,2,3,4,5)
       num_basis: 2
-      dropout: 0.1
+      dropout: 0.0
       acc: stack
+      loader: ('SentimentInteractionsTextualAttributesUUII',)
+      seed: 123
+#    external.EGCF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      lr: 0.001
+#      n_layers: 2
+#      epochs: 200
+#      batch_size: 128
+#      emb: 16
+#    external.MF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      epochs: 200
+#      batch_size: 128
+#      factors: 16
+#      # lr: [ 0.0001, 0.0005, 0.001, 0.005, 0.01 ]
+#      lr: 0.001
+#      seed: 123
+#    external.NCF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      epochs: 200
+#      batch_size: 128
+#      factors: 16
+#      # lr: [ 0.0001, 0.0005, 0.001, 0.005, 0.01 ]
+#      lr: 0.0001
+#      dropout: 0.0
+#      dense_size: (32,16,8)
+#      seed: 123
+#    external.UUIIMF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      epochs: 200
+#      batch_size: 256
+#      factors: 16
+#      # lr: [ 0.0001, 0.0005, 0.001, 0.005, 0.01 ]
+#      lr: 0.01
+#      n_uu_layers: 3
+#      n_ii_layers: 3
+#      alpha: 1.0
+#      beta: 1.0
+#      sim_uu: dot
+#      sim_ii: dot
+#      loader: ('SentimentInteractionsTextualAttributesUUII',)
+#      seed: 123
+#    external.UUIINCF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      epochs: 200
+#      batch_size: 256
+#      factors: 16
+#      # lr: [ 0.0001, 0.0005, 0.001, 0.005, 0.01 ]
+#      lr: 0.001
+#      n_uu_layers: 3
+#      n_ii_layers: 3
+#      alpha: 0.7
+#      beta: 0.7
+#      dropout: 0.0
+#      dense_size: (32,16,8)
+#      sim_uu: dot
+#      sim_ii: dot
+#      loader: ('SentimentInteractionsTextualAttributesUUII',)
+#      seed: 123
+#    external.RMG:
+#      meta:
+#        save_recs: False
+#        validation_metric: MSE
+#        validation_rate: 1
+#        verbose: True
+#      d: 0.2
+#      epochs: 400
+#      batch_size: 256
+#      be: 16
+#    external.GCMC:
+#      meta:
+#        save_recs: False
+#        validation_metric: MSE
+#        validation_rate: 1
+#        verbose: True
+#      lr: 0.001
+#      epochs: 20
+#      batch_size: 128
+#      batch_eval: 512
+#      factors: 32
+#      conv_size: 32
+#      dense_size: 32
+#      n_conv: 1
+#      n_dense: 1
+#      relations: (1,2,3,4,5)
+#      num_basis: 2
+#      dropout: 0.0
+#      acc: stack
