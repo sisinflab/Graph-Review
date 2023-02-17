@@ -11,11 +11,25 @@ class SentimentInteractionsTextualAttributesUUII(AbstractLoader):
         self.ii_dot_path = getattr(ns, "ii_dot", None)
         self.ii_max_path = getattr(ns, "ii_max", None)
         self.ii_min_path = getattr(ns, "ii_min", None)
-        self.ii_global_path = getattr(ns, "ii_global", None)
+        self.ii_avg_path = getattr(ns, "ii_avg", None)
         self.uu_dot_path = getattr(ns, "uu_dot", None)
         self.uu_max_path = getattr(ns, "uu_max", None)
         self.uu_min_path = getattr(ns, "uu_min", None)
-        self.uu_global_path = getattr(ns, "uu_global", None)
+        self.uu_avg_path = getattr(ns, "uu_avg", None)
+
+        self.ii_rat_dot_path = getattr(ns, "ii_rat_dot", None)
+        self.ii_rat_max_path = getattr(ns, "ii_rat_max", None)
+        self.ii_rat_min_path = getattr(ns, "ii_rat_min", None)
+        self.ii_rat_avg_path = getattr(ns, "ii_rat_avg", None)
+        self.uu_rat_dot_path = getattr(ns, "uu_rat_dot", None)
+        self.uu_rat_max_path = getattr(ns, "uu_rat_max", None)
+        self.uu_rat_min_path = getattr(ns, "uu_rat_min", None)
+        self.uu_rat_avg_path = getattr(ns, "uu_rat_avg", None)
+
+        self.uu_no_coeff_path = getattr(ns, "uu_no_coeff", None)
+        self.uu_rat_no_coeff_path = getattr(ns, "uu_rat_no_coeff", None)
+        self.ii_no_coeff_path = getattr(ns, "ii_no_coeff", None)
+        self.ii_rat_no_coeff_path = getattr(ns, "ii_rat_no_coeff", None)
 
         self.users = users
         self.items = items
@@ -41,8 +55,8 @@ class SentimentInteractionsTextualAttributesUUII(AbstractLoader):
             yield 'ii_max', sparse.load_npz(self.ii_max_path)
         if self.ii_min_path:
             yield 'ii_min', sparse.load_npz(self.ii_min_path)
-        if self.ii_global_path:
-            yield 'ii_global', sparse.load_npz(self.ii_global_path)
+        if self.ii_avg_path:
+            yield 'ii_avg', sparse.load_npz(self.ii_avg_path)
 
         if self.uu_dot_path:
             yield 'uu_dot', sparse.load_npz(self.uu_dot_path)
@@ -50,5 +64,33 @@ class SentimentInteractionsTextualAttributesUUII(AbstractLoader):
             yield 'uu_max', sparse.load_npz(self.uu_max_path)
         if self.uu_min_path:
             yield 'uu_min', sparse.load_npz(self.uu_min_path)
-        if self.uu_global_path:
-            yield 'uu_global', sparse.load_npz(self.uu_global_path)
+        if self.uu_avg_path:
+            yield 'uu_avg', sparse.load_npz(self.uu_avg_path)
+
+        if self.ii_rat_dot_path:
+            yield 'ii_rat_dot', sparse.load_npz(self.ii_rat_dot_path)
+        if self.ii_rat_max_path:
+            yield 'ii_rat_max', sparse.load_npz(self.ii_rat_max_path)
+        if self.ii_rat_min_path:
+            yield 'ii_rat_min', sparse.load_npz(self.ii_rat_min_path)
+        if self.ii_rat_avg_path:
+            yield 'ii_rat_avg', sparse.load_npz(self.ii_rat_avg_path)
+
+        if self.uu_rat_dot_path:
+            yield 'uu_rat_dot', sparse.load_npz(self.uu_rat_dot_path)
+        if self.uu_rat_max_path:
+            yield 'uu_rat_max', sparse.load_npz(self.uu_rat_max_path)
+        if self.uu_rat_min_path:
+            yield 'uu_rat_min', sparse.load_npz(self.uu_rat_min_path)
+        if self.uu_rat_avg_path:
+            yield 'uu_rat_avg', sparse.load_npz(self.uu_rat_avg_path)
+
+        if self.ii_no_coeff_path:
+            yield 'ii_no_coeff', sparse.load_npz(self.ii_no_coeff_path)
+        if self.ii_rat_no_coeff_path:
+            yield 'ii_rat_no_coeff', sparse.load_npz(self.ii_rat_no_coeff_path)
+
+        if self.uu_no_coeff_path:
+            yield 'uu_no_coeff', sparse.load_npz(self.uu_no_coeff_path)
+        if self.uu_rat_no_coeff_path:
+            yield 'uu_rat_no_coeff', sparse.load_npz(self.uu_rat_no_coeff_path)

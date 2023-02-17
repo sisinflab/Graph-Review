@@ -13,11 +13,23 @@ experiment:
         uu_dot: ../data/{0}/uu_dot_10.npz
         uu_max: ../data/{0}/uu_max_10.npz
         uu_min: ../data/{0}/uu_min_10.npz
-        uu_global: ../data/{0}/uu_global_10.npz
+        uu_avg: ../data/{0}/uu_avg_10.npz
         ii_dot: ../data/{0}/ii_dot_10.npz
         ii_max: ../data/{0}/ii_max_10.npz
         ii_min: ../data/{0}/ii_min_10.npz
-        ii_global: ../data/{0}/ii_global_10.npz
+        ii_avg: ../data/{0}/ii_avg_10.npz
+        uu_rat_dot: ../data/{0}/uu_rat_dot_10.npz
+        uu_rat_max: ../data/{0}/uu_rat_max_10.npz
+        uu_rat_min: ../data/{0}/uu_rat_min_10.npz
+        uu_rat_avg: ../data/{0}/uu_rat_avg_10.npz
+        uu_no_coeff: ../data/{0}/uu_no_coeff_10.npz
+        uu_rat_no_coeff: ../data/{0}/uu_rat_no_coeff_10.npz
+        ii_rat_dot: ../data/{0}/ii_rat_dot_10.npz
+        ii_rat_max: ../data/{0}/ii_rat_max_10.npz
+        ii_rat_min: ../data/{0}/ii_rat_min_10.npz
+        ii_rat_avg: ../data/{0}/ii_rat_avg_10.npz
+        ii_no_coeff: ../data/{0}/ii_no_coeff_10.npz
+        ii_rat_no_coeff: ../data/{0}/ii_rat_no_coeff_10.npz
 #    side_information:
 #      - dataloader: WordsTextualAttributesPreprocessed
 #        all_item_texts: ../data/{0}/all_item_texts.npy
