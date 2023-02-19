@@ -40,26 +40,6 @@ config = """experiment:
   gpu: 0
   external_models_path: ../external/models/__init__.py
   models:
-    external.UUIINCF:
-      meta:
-        hyper_opt_alg: grid
-        verbose: True
-        save_weights: False
-        save_recs: False
-        validation_rate: 1
-        validation_metric: MSE
-        restore: False
-      epochs: 50
-      batch_size: 128
-      factors: 16
-      lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
-      n_uu: [1, 2, 3, 4]
-      a: [0.0, 0.3, 0.7, 1.0]
-      sim_uu: [dot, max, min, avg, rat_dot, rat_max, rat_min, rat_avg, no_coeff, rat_no_coeff]
-      dropout: 0.1
-      dense_size: (32,16,8)
-      loader: ('SentimentInteractionsTextualAttributesUUII',)
-      seed: 123
     external.UUIIGCMC:
       meta:
         hyper_opt_alg: grid
