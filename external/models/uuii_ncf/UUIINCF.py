@@ -23,20 +23,22 @@ class UUIINCF(RecMixin, BaseRecommenderModel):
 
         self._params_list = [
             ("_learning_rate", "lr", "lr", 0.0005, float, None),
-            ("_alpha", "alpha", "alpha", 0.1, float, None),
-            ("_beta", "beta", "beta", 0.1, float, None),
+            ("_a", "a", "a", 0.1, float, None),
             ("_dropout", "dropout", "dropout", 0.0, float, None),
             ("_factors", "factors", "factors", 64, int, None),
             ("_batch_eval", "batch_eval", "batch_eval", 512, int, None),
-            ("_n_ii_layers", "n_ii_layers", "n_ii_layers", 2, int, None),
-            ("_n_uu_layers", "n_uu_layers", "n_uu_layers", 2, int, None),
+            ("_n_uu", "n_uu", "n_uu", 2, int, None),
             ("_sim_uu", "sim_uu", "sim_uu", 'dot', str, None),
-            ("_sim_ii", "sim_ii", "sim_ii", 'dot', str, None),
             ("_dense_size", "dense_size", "dense_size", "(32,16,8)", lambda x: list(make_tuple(x)),
              lambda x: self._batch_remove(str(x), " []").replace(",", "-")),
             ("_loader", "loader", "loader", 'SentimentInteractionsTextualAttributesUUII', str, None)
         ]
         self.autoset_params()
+
+        self._b = None
+        self._n_ii = None
+        self._sim_ii = None
+        self._set_equal_params_users_items()
 
         np.random.seed(self._seed)
         random.seed(self._seed)
@@ -93,14 +95,14 @@ class UUIINCF(RecMixin, BaseRecommenderModel):
         self._model = UUIINCFModel(
             num_users=self._num_users,
             num_items=self._num_items,
-            num_uu_layers=self._n_uu_layers,
-            num_ii_layers=self._n_ii_layers,
+            num_uu_layers=self._n_uu,
+            num_ii_layers=self._n_ii,
             learning_rate=self._learning_rate,
             embed_k=self._factors,
             sim_ii=sim_ii,
             sim_uu=sim_uu,
-            alpha=self._alpha,
-            beta=self._beta,
+            alpha=self._a,
+            beta=self._b,
             dropout=self._dropout,
             dense_size=self._dense_size,
             random_seed=self._seed
@@ -111,6 +113,11 @@ class UUIINCF(RecMixin, BaseRecommenderModel):
         return "UUIINCF" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
+
+    def _set_equal_params_users_items(self):
+        self._b = self._a
+        self._n_ii = self._n_uu
+        self._sim_ii = self._sim_uu
 
     def train(self):
         if self._restore:

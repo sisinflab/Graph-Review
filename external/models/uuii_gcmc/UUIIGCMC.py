@@ -28,8 +28,7 @@ class UUIIGCMC(RecMixin, BaseRecommenderModel):
             ("_learning_rate", "lr", "lr", 0.005, float, None),
             ("_emb", "emb", "emb", 64, int, None),
             ("_a", "a", "a", 0.1, float, None),
-            ("_b", "b", "b", 0.1, float, None),
-            ("_be", "be", "be", 256, int, None),
+            ("_be", "be", "be", 512, int, None),
             ("_conv_size", "conv_size", "conv_size", 64, int, None),
             ("_dense_size", "dense_size", "dense_size", 64, int, None),
             ("_n_conv", "n_conv", "n_conv", 1, int, None),
@@ -39,13 +38,16 @@ class UUIIGCMC(RecMixin, BaseRecommenderModel):
             ("_n_bas", "n_bas", "n_bas", 2, int, None),
             ("_acc", "acc", "acc", 'stack', str, None),
             ("_drop", "drop", "drop", 0.7, float, None),
-            ("_n_ii", "n_ii", "n_ii", 2, int, None),
             ("_n_uu", "n_uu", "n_uu", 2, int, None),
             ("_sim_uu", "sim_uu", "sim_uu", 'dot', str, None),
-            ("_sim_ii", "sim_ii", "sim_ii", 'dot', str, None),
             ("_loader", "loader", "loader", 'SentimentInteractionsTextualAttributesUUII', str, None)
         ]
         self.autoset_params()
+
+        self._b = None
+        self._n_ii = None
+        self._sim_ii = None
+        self._set_equal_params_users_items()
 
         np.random.seed(self._seed)
         random.seed(self._seed)
@@ -145,6 +147,11 @@ class UUIIGCMC(RecMixin, BaseRecommenderModel):
         return "UUIIGCMC" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
+
+    def _set_equal_params_users_items(self):
+        self._b = self._a
+        self._n_ii = self._n_uu
+        self._sim_ii = self._sim_uu
 
     def node_dropout(self):
         row, col = self._data.sp_i_train.nonzero()
