@@ -31,22 +31,22 @@ experiment:
 #      factors: 16
 #      lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
 #      seed: 123
-    external.NCF:
-      meta:
-        hyper_opt_alg: grid
-        verbose: True
-        save_weights: False
-        save_recs: False
-        validation_rate: 1
-        validation_metric: MSE
-        restore: False
-      epochs: 50
-      batch_size: 128
-      factors: 16
-      lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
-      dropout: 0.1
-      dense_size: (32,16,8)
-      seed: 123
+#    external.NCF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      epochs: 50
+#      batch_size: 128
+#      factors: 16
+#      lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
+#      dropout: 0.1
+#      dense_size: (32,16,8)
+#      seed: 123
     external.GCMC:
       meta:
         save_recs: False
