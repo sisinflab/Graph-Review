@@ -17,20 +17,20 @@ experiment:
   gpu: 0
   external_models_path: ../external/models/__init__.py
   models:
-    external.MF:
-      meta:
-        hyper_opt_alg: grid
-        verbose: True
-        save_weights: False
-        save_recs: False
-        validation_rate: 1
-        validation_metric: MSE
-        restore: False
-      epochs: 50
-      batch_size: 128
-      factors: 16
-      lr: 0.0005
-      seed: 111
+#    external.MF:
+#      meta:
+#        hyper_opt_alg: grid
+#        verbose: True
+#        save_weights: False
+#        save_recs: False
+#        validation_rate: 1
+#        validation_metric: MSE
+#        restore: False
+#      epochs: 50
+#      batch_size: 128
+#      factors: 16
+#      lr: 0.0005
+#      seed: 111
 #    external.NCF:
 #      meta:
 #        hyper_opt_alg: grid
@@ -66,19 +66,19 @@ experiment:
 #      dropout: 0.1
 #      acc: stack
 #      seed: [456, 789, 101112, 131415]
-#    external.EGCF:
-#      meta:
-#        hyper_opt_alg: grid
-#        verbose: True
-#        save_weights: False
-#        save_recs: False
-#        validation_rate: 1
-#        validation_metric: MSE
-#        restore: False
-#      epochs: 50
-#      batch_size: 128
-#      lr: 0.0005
-#      n_layers: 3
-#      emb: 8
-#      loader: ('InteractionsTextualAttributes',)
-#      seed: [456, 789, 101112, 131415]
+    external.EGCF:
+      meta:
+        hyper_opt_alg: grid
+        verbose: True
+        save_weights: False
+        save_recs: False
+        validation_rate: 1
+        validation_metric: MSE
+        restore: False
+      epochs: 50
+      batch_size: 128
+      lr: 0.0005
+      n_layers: 3
+      emb: 8
+      loader: ('InteractionsTextualAttributes',)
+      seed: 111
