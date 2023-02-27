@@ -96,7 +96,7 @@ class NCF(RecMixin, BaseRecommenderModel):
             steps = 0
 
             np.random.shuffle(edge_index)
-            edge_index = edge_index.astype(np.int)
+            edge_index = edge_index.astype(int)
 
             self._model.dense_network.train()
 

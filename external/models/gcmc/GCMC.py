@@ -62,8 +62,6 @@ class GCMC(RecMixin, BaseRecommenderModel):
             ("_learning_rate", "lr", "lr", 0.005, float, None),
             ("_factors", "factors", "factors", 64, int, None),
             ("_batch_eval", "batch_eval", "batch_eval", 256, int, None),
-            ("_convolutional_layer_size", "conv_size", "conv_size", 64, int, None),
-            ("_dense_layer_size", "dense_size", "dense_size", 64, int, None),
             ("_n_convolutional_layers", "n_conv", "n_conv", 1, int, None),
             ("_n_dense_layers", "n_dense", "_n_dense", 1, int, None),
             ("_relations", "relations", "relations", "(1,2,3,4,5)", lambda x: list(make_tuple(x)),
@@ -129,6 +127,9 @@ class GCMC(RecMixin, BaseRecommenderModel):
                                                           sparse_sizes=(self._num_users + self._num_items,
                                                                         self._num_users + self._num_items)))
 
+        self._dense_layer_size = self._factors
+        self._convolutional_layer_size = self._factors
+
         self._model = GCMCModel(
             num_users=self._num_users,
             num_items=self._num_items,
@@ -189,7 +190,7 @@ class GCMC(RecMixin, BaseRecommenderModel):
             loss = 0
             steps = 0
             np.random.shuffle(edge_index)
-            edge_index = edge_index.astype(np.int)
+            edge_index = edge_index.astype(int)
             adj_ratings = self.node_dropout()
             with tqdm(total=int(self._data.transactions // self._batch_size), disable=not self._verbose) as t:
                 for batch in self._sampler.step(edge_index):

@@ -89,7 +89,7 @@ class MF(RecMixin, BaseRecommenderModel):
             steps = 0
 
             np.random.shuffle(edge_index)
-            edge_index = edge_index.astype(np.int)
+            edge_index = edge_index.astype(int)
 
             with tqdm(total=int(self._data.transactions // self._batch_size), disable=not self._verbose) as t:
                 for batch in self._sampler.step(edge_index):

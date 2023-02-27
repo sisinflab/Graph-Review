@@ -1,53 +1,77 @@
+"""
+Module description:
+
+"""
+
+__version__ = '0.3.0'
+__author__ = 'Vito Walter Anelli, Claudio Pomo, Daniele Malitesta'
+__email__ = 'vitowalter.anelli@poliba.it, claudio.pomo@poliba.it, daniele.malitesta@poliba.it'
+
 from ast import literal_eval as make_tuple
 
-import pandas as pd
 from tqdm import tqdm
 import numpy as np
 import torch
+import pandas as pd
 import random
 
 from .pointwise_pos_neg_sampler import Sampler
 from elliot.recommender import BaseRecommenderModel
 from elliot.recommender.base_recommender_model import init_charger
 from elliot.recommender.recommender_utils_mixin import RecMixin
-from .UUIIGCMCModel import UUIIGCMCModel
+from .GATModel import GATModel
 
 from torch_sparse import SparseTensor
 
 
-class UUIIGCMC(RecMixin, BaseRecommenderModel):
+class GAT(RecMixin, BaseRecommenderModel):
+    r"""
+    Graph Attention Networks
 
+    For further details, please refer to the `paper <https://openreview.net/forum?id=rJXMpikCZ>`_
+
+    Args:
+        lr: Learning rate
+        epochs: Number of epochs
+        factors: Number of latent factors
+        batch_size: Batch size
+        l_w: Regularization coefficient
+        weight_size: Tuple with number of units for each embedding propagation layer
+        heads: Tuple with numbers for multi-head-attentions
+        message_dropout: Tuple with dropout rate for each embedding propagation layer
+
+    To include the recommendation model, add it to the config file adopting the following pattern:
+
+    .. code:: yaml
+
+      models:
+        GAT:
+          meta:
+            save_recs: True
+          lr: 0.0005
+          epochs: 50
+          batch_size: 512
+          factors: 64
+          l_w: 0.1
+          weight_size: (64,)
+          heads: (8,)
+          message_dropout: (0.1,)
+    """
     @init_charger
     def __init__(self, data, config, params, *args, **kwargs):
-        if self._batch_size < 1:
-            self._batch_size = self._num_users
-
         ######################################
 
         self._params_list = [
-            ("_learning_rate", "lr", "lr", 0.005, float, None),
-            ("_emb", "emb", "emb", 64, int, None),
-            ("_a", "a", "a", 0.1, float, None),
-            ("_be", "be", "be", 512, int, None),
-            ("_conv_size", "conv_size", "conv_size", 64, int, None),
-            ("_dense_size", "dense_size", "dense_size", 64, int, None),
-            ("_n_conv", "n_conv", "n_conv", 1, int, None),
-            ("_n_dense", "n_dense", "_n_dense", 1, int, None),
-            ("_rel", "rel", "rel", "(1,2,3,4,5)", lambda x: list(make_tuple(x)),
+            ("_learning_rate", "lr", "lr", 0.0005, float, None),
+            ("_factors", "factors", "factors", 64, int, None),
+            ("_batch_eval", "batch_eval", "batch_eval", 512, int, None),
+            ("_weight_size", "weight_size", "weight_size", "(64,)", lambda x: list(make_tuple(x)),
              lambda x: self._batch_remove(str(x), " []").replace(",", "-")),
-            ("_n_bas", "n_bas", "n_bas", 2, int, None),
-            ("_acc", "acc", "acc", 'stack', str, None),
-            ("_drop", "drop", "drop", 0.7, float, None),
-            ("_n_uu", "n_uu", "n_uu", 2, int, None),
-            ("_sim_uu", "sim_uu", "sim_uu", 'dot', str, None),
-            ("_loader", "loader", "loader", 'SentimentInteractionsTextualAttributesUUII', str, None)
+            ("_heads", "heads", "heads", "(1,)", lambda x: list(make_tuple(x)),
+             lambda x: self._batch_remove(str(x), " []").replace(",", "-")),
+            ("_message_dropout", "message_dropout", "message_dropout", 0.1, float, None),
         ]
         self.autoset_params()
-
-        self._b = None
-        self._n_ii = None
-        self._sim_ii = None
-        self._set_equal_params_users_items()
 
         np.random.seed(self._seed)
         random.seed(self._seed)
@@ -86,97 +110,35 @@ class UUIIGCMC(RecMixin, BaseRecommenderModel):
         self.df_val_rat = self.df_val_rat[self.df_val_rat['item'] <= self._num_items - 1]
         self.df_test_rat = self.df_test_rat[self.df_test_rat['item'] <= self._num_items - 1]
 
-        self._side_edge_textual = self._data.side_information.SentimentInteractionsTextualAttributesUUII
-        sim = dict(self._side_edge_textual.object.get_features())
-        if 'uu_' + self._sim_uu in list(sim.keys()):
-            uu_sparse = sim['uu_' + self._sim_uu]
-            rows, cols = uu_sparse.nonzero()
-            sim_uu = SparseTensor(row=torch.tensor(rows, dtype=torch.int64), col=torch.tensor(cols, dtype=torch.int64))
-        else:
-            raise KeyError(f'uu_{self._sim_uu} similarity matrix not implemented!')
-        if 'ii_' + self._sim_ii in list(sim.keys()):
-            ii_sparse = sim['ii_' + self._sim_ii]
-            rows, cols = ii_sparse.nonzero()
-            sim_ii = SparseTensor(row=torch.tensor(rows, dtype=torch.int64), col=torch.tensor(cols, dtype=torch.int64))
-        else:
-            raise KeyError(f'ii_{self._sim_ii} similarity matrix not implemented!')
+        self._n_layers = len(self._weight_size)
 
-        self._num_rel = len(self._rel)
-        self.users = list(range(self._num_users))
-        self.items = list(range(self._num_items))
-
-        self.original_adj_ratings = []
-        row, col = self._data.sp_i_train.nonzero()
+        row, col = data.sp_i_train.nonzero()
         col = [c + self._num_users for c in col]
-        ratings = self._data.sp_i_train_ratings.data
-        edge_index = np.array([row, col, ratings])
-        for r in range(1, self._num_rel + 1):
-            indices = edge_index[2, :] == r
-            edge_index_0 = torch.tensor(edge_index[0, indices], dtype=torch.int64)
-            edge_index_1 = torch.tensor(edge_index[1, indices], dtype=torch.int64)
-            self.original_adj_ratings.append(SparseTensor(row=torch.cat([edge_index_0, edge_index_1], dim=0),
-                                                          col=torch.cat([edge_index_1, edge_index_0], dim=0),
-                                                          sparse_sizes=(self._num_users + self._num_items,
-                                                                        self._num_users + self._num_items)))
+        edge_index = np.array([row, col])
+        edge_index = torch.tensor(edge_index, dtype=torch.int64)
+        self.adj = SparseTensor(row=torch.cat([edge_index[0], edge_index[1]], dim=0),
+                                col=torch.cat([edge_index[1], edge_index[0]], dim=0),
+                                sparse_sizes=(self._num_users + self._num_items,
+                                              self._num_users + self._num_items))
 
-        self._model = UUIIGCMCModel(
+        self._model = GATModel(
             num_users=self._num_users,
             num_items=self._num_items,
             learning_rate=self._learning_rate,
-            embed_k=self._emb,
-            convolutional_layer_size=self._conv_size,
-            dense_layer_size=self._dense_size,
-            n_convolutional_layers=self._n_conv,
-            n_dense_layers=self._n_dense,
-            num_relations=self._num_rel,
-            relations=self._rel,
-            num_basis=self._n_bas,
-            accumulation=self._acc,
-            dropout=self._drop,
-            alpha=self._a,
-            beta=self._b,
-            n_ii_layers=self._n_ii,
-            n_uu_layers=self._n_uu,
-            sim_uu=sim_uu,
-            sim_ii=sim_ii,
+            embed_k=self._factors,
+            weight_size=self._weight_size,
+            n_layers=self._n_layers,
+            heads=self._heads,
+            message_dropout=self._message_dropout,
+            adj=self.adj,
             random_seed=self._seed
         )
 
     @property
     def name(self):
-        return "UUIIGCMC" \
+        return "GAT" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
-
-    def _set_equal_params_users_items(self):
-        self._b = self._a
-        self._n_ii = self._n_uu
-        self._sim_ii = self._sim_uu
-
-    def node_dropout(self):
-        row, col = self._data.sp_i_train.nonzero()
-        col = [c + self._num_users for c in col]
-        ratings = self._data.sp_i_train_ratings.data
-        sampled_edge_index = np.array([row, col, ratings])
-
-        users_to_drop = random.sample(self.users, round(self._num_users * self._drop))
-        items_to_drop = random.sample(self.items, round(self._num_items * self._drop))
-        mask_user = ~np.isin(sampled_edge_index[0], list(users_to_drop))
-        mask_item = ~np.isin(sampled_edge_index[1], list(items_to_drop))
-        sampled_edge_index = np.array(sampled_edge_index[:, mask_user & mask_item], dtype=np.int64)
-
-        adj_ratings = []
-
-        for r in range(1, self._num_rel + 1):
-            indices = sampled_edge_index[2, :] == r
-            edge_index_0 = torch.tensor(sampled_edge_index[0, indices], dtype=torch.int64)
-            edge_index_1 = torch.tensor(sampled_edge_index[1, indices], dtype=torch.int64)
-            adj_ratings.append(SparseTensor(row=torch.cat([edge_index_0, edge_index_1], dim=0),
-                                            col=torch.cat([edge_index_1, edge_index_0], dim=0),
-                                            sparse_sizes=(self._num_users + self._num_items,
-                                                          self._num_users + self._num_items)))
-
-        return adj_ratings
 
     def train(self):
         if self._restore:
@@ -189,41 +151,39 @@ class UUIIGCMC(RecMixin, BaseRecommenderModel):
         for it in self.iterate(self._epochs):
             loss = 0
             steps = 0
+
             np.random.shuffle(edge_index)
-            edge_index = edge_index.astype(np.int)
-            adj_ratings = self.node_dropout()
+            edge_index = edge_index.astype(int)
+
             with tqdm(total=int(self._data.transactions // self._batch_size), disable=not self._verbose) as t:
                 for batch in self._sampler.step(edge_index):
                     steps += 1
-                    current_loss = self._model.train_step(batch, adj_ratings)
-                    loss += current_loss
-                    t.set_postfix({'loss': f'{current_loss:.5f}'})
+                    loss += self._model.train_step(batch)
+                    t.set_postfix({'loss': f'{loss / steps:.5f}'})
                     t.update()
 
-            self.evaluate(it, loss / steps)
+            self.evaluate(it, loss / (it + 1))
 
     def get_recommendations(self, k: int = 100):
         predictions_test = []
         predictions_val = []
-        zu, zi, gus, gis = self._model.propagate_embeddings(True, self.original_adj_ratings)
+        gu, gi = self._model.propagate_embeddings()
         val_len = len(self.df_val_rat)
-        with tqdm(total=int(val_len // self._be), disable=not self._verbose) as t:
-            for index, offset in enumerate(range(0, val_len, self._be)):
-                offset_stop = min(offset + self._be, val_len)
+        with tqdm(total=int(val_len // self._batch_eval), disable=not self._verbose) as t:
+            for index, offset in enumerate(range(0, val_len, self._batch_eval)):
+                offset_stop = min(offset + self._batch_eval, val_len)
                 current_df = self.df_val_rat[offset:offset_stop]
-                gu = (1 - self._a) * zu[current_df['user'].tolist()] + self._a * gus[current_df['user'].tolist()]
-                gi = (1 - self._b) * zi[current_df['item'].tolist()] + self._b * gis[current_df['item'].tolist()]
-                p = self._model.predict(gu, gi)
+                p = self._model.predict(gu[current_df['user'].tolist()], gi[current_df['item'].tolist()],
+                                        current_df['user'].tolist(), current_df['item'].tolist())
                 predictions_val += p.detach().cpu().numpy().tolist()
                 t.update()
         test_len = len(self.df_test_rat)
-        with tqdm(total=int(test_len // self._be), disable=not self._verbose) as t:
-            for index, offset in enumerate(range(0, test_len, self._be)):
-                offset_stop = min(offset + self._be, test_len)
+        with tqdm(total=int(test_len // self._batch_eval), disable=not self._verbose) as t:
+            for index, offset in enumerate(range(0, test_len, self._batch_eval)):
+                offset_stop = min(offset + self._batch_eval, test_len)
                 current_df = self.df_test_rat[offset:offset_stop]
-                gu = (1 - self._a) * zu[current_df['user'].tolist()] + self._a * gus[current_df['user'].tolist()]
-                gi = (1 - self._b) * zi[current_df['item'].tolist()] + self._b * gis[current_df['item'].tolist()]
-                p = self._model.predict(gu, gi)
+                p = self._model.predict(gu[current_df['user'].tolist()], gi[current_df['item'].tolist()],
+                                        current_df['user'].tolist(), current_df['item'].tolist())
                 predictions_test += p.detach().cpu().numpy().tolist()
                 t.update()
         return predictions_val, predictions_test

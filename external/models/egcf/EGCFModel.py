@@ -106,8 +106,6 @@ class EGCFModel(torch.nn.Module, ABC):
         self.projection = torch.nn.Linear(self.edge_embeddings_interactions.shape[-1], self.embed_k)
         self.projection.to(self.device)
 
-        self.softplus = torch.nn.Softplus()
-
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
         self.loss = torch.nn.MSELoss()

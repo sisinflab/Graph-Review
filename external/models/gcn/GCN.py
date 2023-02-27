@@ -1,34 +1,37 @@
+"""
+Module description:
+
+"""
+
+__version__ = '0.3.0'
+__author__ = 'Vito Walter Anelli, Claudio Pomo, Daniele Malitesta'
+__email__ = 'vitowalter.anelli@poliba.it, claudio.pomo@poliba.it, daniele.malitesta@poliba.it'
+
 from tqdm import tqdm
 import numpy as np
 import torch
-import random
 import pandas as pd
+import random
 
 from .pointwise_pos_neg_sampler import Sampler
-
 from elliot.recommender import BaseRecommenderModel
 from elliot.recommender.base_recommender_model import init_charger
 from elliot.recommender.recommender_utils_mixin import RecMixin
-from .EGCFModel import EGCFModel
+from .GCNModel import GCNModel
 
 from torch_sparse import SparseTensor
 
 
-class EGCF(RecMixin, BaseRecommenderModel):
-    r"""
-    Edge Graph Collaborative Filtering
-    """
-
+class GCN(RecMixin, BaseRecommenderModel):
     @init_charger
     def __init__(self, data, config, params, *args, **kwargs):
-
         ######################################
+
         self._params_list = [
-            ("_lr", "lr", "lr", 0.0005, float, None),
-            ("_emb", "emb", "emb", 64, int, None),
+            ("_learning_rate", "lr", "lr", 0.0005, float, None),
+            ("_factors", "factors", "factors", 64, int, None),
+            ("_n_layers", "n_layers", "n_layers", 3, int, None),
             ("_batch_eval", "batch_eval", "batch_eval", 512, int, None),
-            ("_n_layers", "n_layers", "n_layers", 64, int, None),
-            ("_loader", "loader", "loader", 'InteractionsTextualAttributes', str, None)
         ]
         self.autoset_params()
 
@@ -69,36 +72,31 @@ class EGCF(RecMixin, BaseRecommenderModel):
         self.df_val_rat = self.df_val_rat[self.df_val_rat['item'] <= self._num_items - 1]
         self.df_test_rat = self.df_test_rat[self.df_test_rat['item'] <= self._num_items - 1]
 
-        self._side_edge_textual = self._data.side_information.InteractionsTextualAttributes
-
         row, col = data.sp_i_train.nonzero()
         col = [c + self._num_users for c in col]
-        node_node_graph = np.array([row, col])
-        node_node_graph = torch.tensor(node_node_graph, dtype=torch.int64)
+        edge_index = np.array([row, col])
+        edge_index = torch.tensor(edge_index, dtype=torch.int64)
+        self.adj = SparseTensor(row=torch.cat([edge_index[0], edge_index[1]], dim=0),
+                                col=torch.cat([edge_index[1], edge_index[0]], dim=0),
+                                sparse_sizes=(self._num_users + self._num_items,
+                                              self._num_users + self._num_items))
 
-        self.node_node_adj = SparseTensor(row=torch.cat([node_node_graph[0], node_node_graph[1]], dim=0),
-                                          col=torch.cat([node_node_graph[1], node_node_graph[0]], dim=0),
-                                          sparse_sizes=(self._num_users + self._num_items,
-                                                        self._num_users + self._num_items))
+        self._weight_size = self._factors
 
-        edge_features = self._side_edge_textual.object.get_all_features()
-
-        self._model = EGCFModel(
+        self._model = GCNModel(
             num_users=self._num_users,
             num_items=self._num_items,
-            learning_rate=self._lr,
-            embed_k=self._emb,
+            learning_rate=self._learning_rate,
+            embed_k=self._factors,
             n_layers=self._n_layers,
-            edge_features=edge_features,
-            node_node_adj=self.node_node_adj,
-            rows=row,
-            cols=col,
+            weight_size=self._weight_size,
+            adj=self.adj,
             random_seed=self._seed
         )
 
     @property
     def name(self):
-        return "EGCF" \
+        return "GCN" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
 
@@ -129,14 +127,13 @@ class EGCF(RecMixin, BaseRecommenderModel):
     def get_recommendations(self, k: int = 100):
         predictions_test = []
         predictions_val = []
-        gu, gi, gut, git = self._model.propagate_embeddings()
+        gu, gi = self._model.propagate_embeddings()
         val_len = len(self.df_val_rat)
         with tqdm(total=int(val_len // self._batch_eval), disable=not self._verbose) as t:
             for index, offset in enumerate(range(0, val_len, self._batch_eval)):
                 offset_stop = min(offset + self._batch_eval, val_len)
                 current_df = self.df_val_rat[offset:offset_stop]
                 p = self._model.predict(gu[current_df['user'].tolist()], gi[current_df['item'].tolist()],
-                                        gut[current_df['user'].tolist()], git[current_df['item'].tolist()],
                                         current_df['user'].tolist(), current_df['item'].tolist())
                 predictions_val += p.detach().cpu().numpy().tolist()
                 t.update()
@@ -146,7 +143,6 @@ class EGCF(RecMixin, BaseRecommenderModel):
                 offset_stop = min(offset + self._batch_eval, test_len)
                 current_df = self.df_test_rat[offset:offset_stop]
                 p = self._model.predict(gu[current_df['user'].tolist()], gi[current_df['item'].tolist()],
-                                        gut[current_df['user'].tolist()], git[current_df['item'].tolist()],
                                         current_df['user'].tolist(), current_df['item'].tolist())
                 predictions_test += p.detach().cpu().numpy().tolist()
                 t.update()

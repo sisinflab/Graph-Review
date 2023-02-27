@@ -24,10 +24,12 @@ class UUIINCF(RecMixin, BaseRecommenderModel):
         self._params_list = [
             ("_learning_rate", "lr", "lr", 0.0005, float, None),
             ("_a", "a", "a", 0.1, float, None),
+            ("_b", "b", "b", 0.1, float, None),
             ("_dropout", "dropout", "dropout", 0.0, float, None),
             ("_factors", "factors", "factors", 64, int, None),
             ("_batch_eval", "batch_eval", "batch_eval", 512, int, None),
             ("_n_uu", "n_uu", "n_uu", 2, int, None),
+            ("_n_ii", "n_ii", "n_ii", 2, int, None),
             ("_sim_uu", "sim_uu", "sim_uu", 'dot', str, None),
             ("_dense_size", "dense_size", "dense_size", "(32,16,8)", lambda x: list(make_tuple(x)),
              lambda x: self._batch_remove(str(x), " []").replace(",", "-")),
@@ -35,10 +37,7 @@ class UUIINCF(RecMixin, BaseRecommenderModel):
         ]
         self.autoset_params()
 
-        self._b = None
-        self._n_ii = None
-        self._sim_ii = None
-        self._set_equal_params_users_items()
+        self._sim_ii = self._sim_uu
 
         np.random.seed(self._seed)
         random.seed(self._seed)
@@ -113,11 +112,6 @@ class UUIINCF(RecMixin, BaseRecommenderModel):
         return "UUIINCF" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
-
-    def _set_equal_params_users_items(self):
-        self._b = self._a
-        self._n_ii = self._n_uu
-        self._sim_ii = self._sim_uu
 
     def train(self):
         if self._restore:

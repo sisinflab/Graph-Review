@@ -1,41 +1,66 @@
-from tqdm import tqdm
+"""
+Module description:
+
+"""
+
+__version__ = '0.3.1'
+__author__ = 'Vito Walter Anelli, Claudio Pomo'
+__email__ = 'vitowalter.anelli@poliba.it, claudio.pomo@poliba.it'
+
 import numpy as np
-import torch
+from tqdm import tqdm
 import random
-import pandas as pd
 
 from .pointwise_pos_neg_sampler import Sampler
-
-from elliot.recommender import BaseRecommenderModel
+from elliot.recommender.base_recommender_model import BaseRecommenderModel
 from elliot.recommender.base_recommender_model import init_charger
+from .SVDppModel import SVDppModel
 from elliot.recommender.recommender_utils_mixin import RecMixin
-from .EGCFModel import EGCFModel
-
-from torch_sparse import SparseTensor
+import pandas as pd
 
 
-class EGCF(RecMixin, BaseRecommenderModel):
+class SVDpp(RecMixin, BaseRecommenderModel):
     r"""
-    Edge Graph Collaborative Filtering
+    SVD++
+
+    For further details, please refer to the `paper <https://dl.acm.org/doi/10.1145/1401890.1401944>`_
+
+    Args:
+        factors: Number of latent factors
+        lr: Learning rate
+        reg_w: Regularization coefficient for latent factors
+        reg_b: Regularization coefficient for bias
+
+    To include the recommendation model, add it to the config file adopting the following pattern:
+
+    .. code:: yaml
+
+      models:
+        SVDpp:
+          meta:
+            save_recs: True
+          epochs: 10
+          batch_size: 512
+          factors: 50
+          lr: 0.001
+          reg_w: 0.1
+          reg_b: 0.001
     """
 
     @init_charger
     def __init__(self, data, config, params, *args, **kwargs):
 
-        ######################################
         self._params_list = [
-            ("_lr", "lr", "lr", 0.0005, float, None),
-            ("_emb", "emb", "emb", 64, int, None),
-            ("_batch_eval", "batch_eval", "batch_eval", 512, int, None),
-            ("_n_layers", "n_layers", "n_layers", 64, int, None),
-            ("_loader", "loader", "loader", 'InteractionsTextualAttributes', str, None)
+            ("_factors", "factors", "factors", 10, None, None),
+            ("_batch_eval", "batch_eval", "batch_eval", 512, None, None),
+            ("_learning_rate", "lr", "lr", 0.001, None, None),
+            ("_lambda_weights", "reg_w", "reg_w", 0.1, None, None),
+            ("_lambda_bias", "reg_b", "reg_b", 0.001, None, None),
         ]
         self.autoset_params()
 
         np.random.seed(self._seed)
         random.seed(self._seed)
-
-        self._sampler = Sampler(self._batch_size, self._data.transactions)
 
         self.df_val_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
         self.df_test_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
@@ -69,36 +94,18 @@ class EGCF(RecMixin, BaseRecommenderModel):
         self.df_val_rat = self.df_val_rat[self.df_val_rat['item'] <= self._num_items - 1]
         self.df_test_rat = self.df_test_rat[self.df_test_rat['item'] <= self._num_items - 1]
 
-        self._side_edge_textual = self._data.side_information.InteractionsTextualAttributes
+        self._ratings = self._data.train_dict
+        self._sp_i_train = self._data.sp_i_train
+        self._i_items_set = list(range(self._num_items))
 
-        row, col = data.sp_i_train.nonzero()
-        col = [c + self._num_users for c in col]
-        node_node_graph = np.array([row, col])
-        node_node_graph = torch.tensor(node_node_graph, dtype=torch.int64)
+        self._sampler = Sampler(self._batch_size, self._data.transactions, self._data.sp_i_train_ratings)
 
-        self.node_node_adj = SparseTensor(row=torch.cat([node_node_graph[0], node_node_graph[1]], dim=0),
-                                          col=torch.cat([node_node_graph[1], node_node_graph[0]], dim=0),
-                                          sparse_sizes=(self._num_users + self._num_items,
-                                                        self._num_users + self._num_items))
-
-        edge_features = self._side_edge_textual.object.get_all_features()
-
-        self._model = EGCFModel(
-            num_users=self._num_users,
-            num_items=self._num_items,
-            learning_rate=self._lr,
-            embed_k=self._emb,
-            n_layers=self._n_layers,
-            edge_features=edge_features,
-            node_node_adj=self.node_node_adj,
-            rows=row,
-            cols=col,
-            random_seed=self._seed
-        )
+        self._model = SVDppModel(self._num_users, self._num_items, self._factors,
+                                 self._lambda_weights, self._lambda_bias, self._learning_rate, self._seed)
 
     @property
     def name(self):
-        return "EGCF" \
+        return "SVDpp" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
 
@@ -121,7 +128,7 @@ class EGCF(RecMixin, BaseRecommenderModel):
                 for batch in self._sampler.step(edge_index):
                     steps += 1
                     loss += self._model.train_step(batch)
-                    t.set_postfix({'loss': f'{loss / steps:.5f}'})
+                    t.set_postfix({'loss': f'{loss.numpy() / steps:.5f}'})
                     t.update()
 
             self.evaluate(it, loss / (it + 1))
@@ -129,26 +136,27 @@ class EGCF(RecMixin, BaseRecommenderModel):
     def get_recommendations(self, k: int = 100):
         predictions_test = []
         predictions_val = []
-        gu, gi, gut, git = self._model.propagate_embeddings()
         val_len = len(self.df_val_rat)
         with tqdm(total=int(val_len // self._batch_eval), disable=not self._verbose) as t:
             for index, offset in enumerate(range(0, val_len, self._batch_eval)):
                 offset_stop = min(offset + self._batch_eval, val_len)
                 current_df = self.df_val_rat[offset:offset_stop]
-                p = self._model.predict(gu[current_df['user'].tolist()], gi[current_df['item'].tolist()],
-                                        gut[current_df['user'].tolist()], git[current_df['item'].tolist()],
-                                        current_df['user'].tolist(), current_df['item'].tolist())
-                predictions_val += p.detach().cpu().numpy().tolist()
+                current_ratings = np.array(self._data.sp_i_train_ratings.todense()[current_df['user'].tolist()])
+                p = self._model.predict(
+                    inputs=(np.array(current_df['user'].tolist()),
+                            np.array(current_df['item'].tolist()), current_ratings))
+                predictions_val += p.numpy().tolist()
                 t.update()
         test_len = len(self.df_test_rat)
         with tqdm(total=int(test_len // self._batch_eval), disable=not self._verbose) as t:
             for index, offset in enumerate(range(0, test_len, self._batch_eval)):
                 offset_stop = min(offset + self._batch_eval, test_len)
                 current_df = self.df_test_rat[offset:offset_stop]
-                p = self._model.predict(gu[current_df['user'].tolist()], gi[current_df['item'].tolist()],
-                                        gut[current_df['user'].tolist()], git[current_df['item'].tolist()],
-                                        current_df['user'].tolist(), current_df['item'].tolist())
-                predictions_test += p.detach().cpu().numpy().tolist()
+                current_ratings = np.array(self._data.sp_i_train_ratings.todense()[current_df['user'].tolist()])
+                p = self._model.predict(
+                    inputs=(np.array(current_df['user'].tolist()),
+                            np.array(current_df['item'].tolist()), current_ratings))
+                predictions_test += p.numpy().tolist()
                 t.update()
         return predictions_val, predictions_test
 
@@ -179,14 +187,6 @@ class EGCF(RecMixin, BaseRecommenderModel):
                     self._params.best_iteration = it + 1
                 self.logger.info("******************************************")
                 self.best_metric_value = self._results[-1][0]["val_results"][self._validation_metric]
-                if self._save_weights:
-                    if hasattr(self, "_model"):
-                        torch.save({
-                            'model_state_dict': self._model.state_dict(),
-                            'optimizer_state_dict': self._model.optimizer.state_dict()
-                        }, self._saving_filepath)
-                    else:
-                        self.logger.warning("Saving weights FAILED. No model to save.")
 
     def get_loss(self):
         if self._optimize_internal_loss:
@@ -200,17 +200,3 @@ class EGCF(RecMixin, BaseRecommenderModel):
         else:
             val_results = np.argmin([r[0]["val_results"][self._validation_metric] for r in self._results])
         return val_results
-
-    def restore_weights(self):
-        try:
-            checkpoint = torch.load(self._saving_filepath)
-            self._model.load_state_dict(checkpoint['model_state_dict'])
-            self._model.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            print(f"Model correctly Restored")
-            self.evaluate()
-            return True
-
-        except Exception as ex:
-            raise Exception(f"Error in model restoring operation! {ex}")
-
-        return False

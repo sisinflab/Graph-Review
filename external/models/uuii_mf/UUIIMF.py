@@ -22,21 +22,17 @@ class UUIIMF(RecMixin, BaseRecommenderModel):
         self._params_list = [
             ("_learning_rate", "lr", "lr", 0.0005, float, None),
             ("_a", "a", "a", 0.1, float, None),
+            ("_b", "b", "b", 0.1, float, None),
             ("_factors", "factors", "factors", 64, int, None),
             ("_batch_eval", "batch_eval", "batch_eval", 512, int, None),
             ("_n_uu", "n_uu", "n_uu", 2, int, None),
+            ("_n_ii", "n_ii", "n_ii", 2, int, None),
             ("_sim_uu", "sim_uu", "sim_uu", 'dot', str, None),
             ("_loader", "loader", "loader", 'SentimentInteractionsTextualAttributesUUII', str, None)
         ]
         self.autoset_params()
 
-        self._b = None
-        self._n_ii = None
-        self._sim_ii = None
-        self._set_equal_params_users_items()
-
-        np.random.seed(self._seed)
-        random.seed(self._seed)
+        self._sim_ii = self._sim_uu
 
         np.random.seed(self._seed)
         random.seed(self._seed)
@@ -109,11 +105,6 @@ class UUIIMF(RecMixin, BaseRecommenderModel):
         return "UUIIMF" \
                + f"_{self.get_base_params_shortcut()}" \
                + f"_{self.get_params_shortcut()}"
-
-    def _set_equal_params_users_items(self):
-        self._b = self._a
-        self._n_ii = self._n_uu
-        self._sim_ii = self._sim_uu
 
     def train(self):
         if self._restore:
