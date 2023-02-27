@@ -71,10 +71,10 @@ class UUIIGATModel(torch.nn.Module, ABC):
         self.Gi.to(self.device)
 
         # similarity embeddings
-        self.Gus = torch.nn.Embedding(self.num_users, self.embed_k)
+        self.Gus = torch.nn.Embedding(self.num_users, self.weight_size_list[-1])
         torch.nn.init.xavier_uniform_(self.Gus.weight)
         self.Gus.to(self.device)
-        self.Gis = torch.nn.Embedding(self.num_items, self.embed_k)
+        self.Gis = torch.nn.Embedding(self.num_items, self.weight_size_list[-1])
         torch.nn.init.xavier_uniform_(self.Gis.weight)
         self.Gis.to(self.device)
 
