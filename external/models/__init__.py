@@ -23,4 +23,4 @@ for _backend in sys.modules["external"].backend:
         from .uuii_mf import UUIIMF
         from .uuii_ncf import UUIINCF
         from .uuii_gcn import UUIIGCN
-        from uuii_gat import UUIIGAT
+        from .uuii_gat import UUIIGAT
