@@ -5,9 +5,13 @@ import nltk
 from nltk.tokenize import word_tokenize, sent_tokenize
 import numpy as np
 import random
+import argparse
 import pandas as pd
 
 nltk.download('punkt')
+
+parser = argparse.ArgumentParser(description="Run preprocessing for RMG.")
+parser.add_argument('--dataset', nargs='?', default='Digital_Music', help='dataset path')
 
 
 def dataframe_to_dict(df):
@@ -16,7 +20,7 @@ def dataframe_to_dict(df):
     return ratings
 
 
-dataset = 'Digital_Music'
+dataset = args.dataset
 
 with open(f'../../../data/{dataset}/{dataset}_5.json', 'r') as f:
     rawdata = [JSONDecoder().decode(x) for x in f.readlines()]
