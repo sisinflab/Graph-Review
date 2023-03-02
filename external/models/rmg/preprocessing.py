@@ -20,6 +20,7 @@ def dataframe_to_dict(df):
     return ratings
 
 
+args = parser.parse_args()
 dataset = args.dataset
 
 with open(f'../../../data/{dataset}/{dataset}_5.json', 'r') as f:
