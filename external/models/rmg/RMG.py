@@ -25,7 +25,7 @@ class RMG(RecMixin, BaseRecommenderModel):
         ######################################
 
         self._params_list = [
-            ("_batch_eval", "batch_eval", "be", 256, int, None),
+            ("_batch_eval", "batch_eval", "be", 512, int, None),
             ("_learning_rate", "lr", "lr", 0.0005, float, None),
             ("_wcfm", "wcfm", "wcfm", 100, int, None),
             ("_wcfk", "wcfk", "wcfk", 3, int, None),
