@@ -23,17 +23,18 @@ experiment:
   external_models_path: ../external/models/__init__.py
   models:
     external.RMG:
-      hyper_opt_alg: grid
-      verbose: True
-      save_weights: False
-      save_recs: False
-      validation_rate: 1
-      validation_metric: MSE
-      restore: False
-    lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
-    d: 0.2
-    loader: ('WordsTextualAttributesPreprocessed',)
-    seed: 123
+      meta:
+        hyper_opt_alg: grid
+        verbose: True
+        save_weights: False
+        save_recs: False
+        validation_rate: 1
+        validation_metric: MSE
+        restore: False
+      lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
+      dropout: 0.2
+      loader: ('WordsTextualAttributesPreprocessed',)
+      seed: 123
 #    external.MF:
 #      meta:
 #        hyper_opt_alg: grid
