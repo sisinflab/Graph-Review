@@ -34,6 +34,7 @@ experiment:
       lr: [0.0001, 0.0005, 0.001, 0.005, 0.01]
       dropout: 0.2
       loader: ('WordsTextualAttributesPreprocessed',)
+      batch_size: 128
       seed: 123
 #    external.MF:
 #      meta:
