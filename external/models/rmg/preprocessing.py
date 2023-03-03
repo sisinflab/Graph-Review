@@ -117,11 +117,11 @@ for i in rawdata:
 for i in range(len(uir_triples)):
     uir_triples[i]['id']=i
 
-MAX_SENT_LENGTH = 10
-MAX_SENTS = 5
-MAX_REVIEW_USER = 15
-MAX_REVIEW_ITEM = 20
-MAX_NEIGHBOR = 20
+MAX_SENT_LENGTH = 20
+MAX_SENTS = 10
+MAX_REVIEW_USER = 13
+MAX_REVIEW_ITEM = 24
+MAX_NEIGHBOR = 75
 
 data = pd.DataFrame(uir_triples)
 
