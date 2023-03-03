@@ -99,6 +99,8 @@ for i in rawdata:
     if i['asin'] == 'unknown':
         print("unkown item id")
         continue
+    if i['reviewText'] == '':
+        continue
     try:
         temp = {}
         doc = []
