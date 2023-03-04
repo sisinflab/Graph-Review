@@ -255,12 +255,14 @@ configs = ["""experiment:
 
 topk = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
-for config in configs:
-    print(f'**********EXPERIMENT FOR: {config.split("external.")[1].split(":")[0]} HAS STARTED!**********')
-    for t in topk:
+for t in topk:
+    print(f'**********EXPERIMENT WITH TOP-K: {t} HAS STARTED!**********')
+    for config in configs:
+        if t == 10 and config.split("external.")[1].split(":")[0] == 'UUIIMF':
+            continue
         with open(f'config_files/test_error_uuii_{t}.yml', 'w') as f:
             f.write(config.replace('topk', str(t)).replace('dataset_name', args.dataset))
-        print(f'**********EXPERIMENT WITH TOP-K: {t} HAS STARTED!**********')
+        print(f'**********EXPERIMENT FOR: {config.split("external.")[1].split(":")[0]} HAS STARTED!**********')
         run_experiment(f"config_files/test_error_uuii_{t}.yml")
-        print(f'**********EXPERIMENT WITH TOP-K: {t} HAS ENDED!**********')
-    print(f'**********EXPERIMENT FOR: {config.split("external.")[1].split(":")[0]} HAS ENDED!**********')
+        print(f'**********EXPERIMENT FOR: {config.split("external.")[1].split(":")[0]} HAS ENDED!**********')
+    print(f'**********EXPERIMENT WITH TOP-K: {t} HAS ENDED!**********')
