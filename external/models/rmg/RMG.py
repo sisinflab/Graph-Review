@@ -45,6 +45,17 @@ class RMG(RecMixin, BaseRecommenderModel):
         ]
         self.autoset_params()
 
+        self._wcfm = self._factors
+        self._wa = self._factors
+        self._scfm = self._factors
+        self._sa = self._factors
+        self._da = self._factors
+        self._dau = self._factors
+        self._uia = self._factors
+        self._iua = self._factors
+        self._ua = self._factors
+        self._ia = self._factors
+
         self.df_val_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
         self.df_test_rat = pd.DataFrame(columns=['user', 'item', 'rating'])
 
