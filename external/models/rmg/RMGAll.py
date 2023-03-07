@@ -5,6 +5,8 @@ import numpy as np
 import random
 import argparse
 import pandas as pd
+import tensorflow as tf
+import os
 
 nltk.download('punkt')
 
@@ -15,8 +17,12 @@ args = parser.parse_args()
 dataset = args.dataset
 batch_size = args.batch_size
 
+os.environ['PYTHONHASHSEED'] = str(123)
 random.seed(123)
 np.random.seed(123)
+tf.random.set_seed(123)
+os.environ['TF_DETERMINISTIC_OPS'] = '1'
+os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
 
 with open(f'../../../data/{dataset}/{dataset}_5.json', 'r') as f:
     rawdata = [JSONDecoder().decode(x) for x in f.readlines()]
@@ -302,8 +308,6 @@ test_label = np.array(test_label, dtype='float32')
 test_item_id = np.array(test_item_id, dtype='int32')
 test_user_id = np.array(test_user_id, dtype='int32')
 
-print()
-
 
 def generate_batch_data_random(item, user, user_to_item_to_user, ui, item_to_user_to_item, iu, item_id, user_id, y,
                                batch_size):
@@ -318,10 +322,7 @@ def generate_batch_data_random(item, user, user_to_item_to_user, ui, item_to_use
                     np.expand_dims(item_id[i], axis=1), np.expand_dims(user_id[i], axis=1)], y[i])
 
 
-import os
-
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-import tensorflow as tf
 
 sentence_input = tf.keras.layers.Input(shape=(MAX_SENT_LENGTH,), dtype='int32')
 embedding_layer = tf.keras.layers.Embedding(len(word_dict_freq), 300, weights=[emb_mat], trainable=True)
@@ -451,4 +452,3 @@ for ep in range(50):
 
 print('End training!')
 print(f'Best MSE: {final_test_mse}')
-
