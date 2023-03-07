@@ -302,6 +302,7 @@ test_label = np.array(test_label, dtype='float32')
 test_item_id = np.array(test_item_id, dtype='int32')
 test_user_id = np.array(test_user_id, dtype='int32')
 
+print()
 
 def generate_batch_data_random(item, user, user_to_item_to_user, ui, item_to_user_to_item, iu, item_id, user_id, y,
                                batch_size):
@@ -312,7 +313,7 @@ def generate_batch_data_random(item, user, user_to_item_to_user, ui, item_to_use
     while (True):
         for i in batches:
             yield ([item[item_id[i]], user[user_id[i]], user_to_item_to_user[user_id[i]],
-                    user_to_item[user_id[i]], item_to_user_to_item, item_to_user[item_id[i]],
+                    user_to_item[user_id[i]], item_to_user_to_item[item_id[i]], item_to_user[item_id[i]],
                     np.expand_dims(item_id[i], axis=1), np.expand_dims(user_id[i], axis=1)], y[i])
 
 
@@ -371,8 +372,8 @@ user_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_user, doc_att_u])
 user_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 item_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 
-user_embedding = tf.keras.layers.Embedding(len(user_review_id), 100, trainable=True)
-item_embedding = tf.keras.layers.Embedding(len(item_review_id), 100, trainable=True)
+user_embedding = tf.keras.layers.Embedding(len(user_review_id) + 2, 100, trainable=True)
+item_embedding = tf.keras.layers.Embedding(len(item_review_id) + 2, 100, trainable=True)
 
 user_item_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
 item_user_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
@@ -380,8 +381,8 @@ item_user_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
 user_item_user_ids = tf.keras.Input((MAX_NEIGHBOR, MAX_NEIGHBOR), dtype='int32')
 item_user_item_ids = tf.keras.Input((MAX_NEIGHBOR, MAX_NEIGHBOR), dtype='int32')
 
-user_item_embedding = user_embedding(user_item_ids)
-item_user_embedding = item_embedding(item_user_ids)
+user_item_embedding = item_embedding(user_item_ids)
+item_user_embedding = user_embedding(item_user_ids)
 
 ui_att = tf.keras.layers.Dense(100, activation='tanh')(user_item_embedding)
 ui_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(ui_att))
@@ -396,8 +397,8 @@ iu_emb = tf.keras.layers.Dot((1, 1))([item_user_embedding, iu_att_weight])
 userencoder = tf.keras.Model([user_item_ids], ui_emb)
 itemencoder = tf.keras.Model([item_user_ids], iu_emb)
 
-user_encoder = tf.keras.layers.TimeDistributed(userencoder)(user_item_user_ids)
-item_encoder = tf.keras.layers.TimeDistributed(itemencoder)(item_user_item_ids)
+user_encoder = tf.keras.layers.TimeDistributed(itemencoder)(user_item_user_ids)
+item_encoder = tf.keras.layers.TimeDistributed(userencoder)(item_user_item_ids)
 
 ufactor = tf.keras.layers.concatenate([user_item_embedding, user_encoder])
 ifactor = tf.keras.layers.concatenate([item_user_embedding, item_encoder])
