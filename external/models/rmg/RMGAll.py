@@ -415,7 +415,7 @@ item_embedding= tf.keras.layers.Flatten()(item_embedding(item_id))
 factor_u=tf.keras.layers.concatenate([user_emb,user_embedding,user_emb_g])
 factor_i=tf.keras.layers.concatenate([item_emb,item_embedding,item_emb_g])
 
-preds=tf.keras.layers.Dense(1,activation='relu')(tf.multiply([factor_u,factor_i]))
+preds=tf.keras.layers.Dense(1,activation='relu')(tf.multiply(factor_u,factor_i))
 
 model = tf.keras.Model([reviews_input_item,reviews_input_user,user_item_user_ids,user_item_ids,item_user_item_ids,item_user_ids,item_id,user_id], preds)
 
