@@ -324,7 +324,7 @@ embedding_layer = tf.keras.layers.Embedding(len(word_dict_freq), 300, weights=[e
 
 embedded_sequences = tf.keras.layers.Dropout(0.2)(embedding_layer(sentence_input))
 
-word_cnn_fea = tf.keras.layers.Dropout(0.2)(tf.keras.layers.Convolution1D(nb_filter=100, filter_length=3,  padding='same', activation='relu', strides=1)(embedded_sequences))
+word_cnn_fea = tf.keras.layers.Dropout(0.2)(tf.keras.layers.Convolution1D(filters=100, kernel_size=3,  padding='same', activation='relu', strides=1)(embedded_sequences))
 
 word_att = tf.keras.layers.Dense(100,activation='tanh')(word_cnn_fea)
 word_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(word_att))
@@ -337,7 +337,7 @@ review_input = tf.keras.Input((MAX_SENTS,MAX_SENT_LENGTH,), dtype='int32')
 
 review_encoder = tf.keras.layers.TimeDistributed(sent_encoder)(review_input)
 
-sent_cnn_fea = tf.keras.layers.Dropout(0.2)(tf.keras.layers.Convolution1D(nb_filter=100, filter_length=3, padding='same', activation='relu', strides=1)(review_encoder))
+sent_cnn_fea = tf.keras.layers.Dropout(0.2)(tf.keras.layers.Convolution1D(filters=100, kernel_size=3, padding='same', activation='relu', strides=1)(review_encoder))
 
 sent_att = tf.keras.layers.Dense(100,activation='tanh')(sent_cnn_fea)
 sent_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(sent_att))
