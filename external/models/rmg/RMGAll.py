@@ -304,6 +304,7 @@ test_user_id = np.array(test_user_id, dtype='int32')
 
 print()
 
+
 def generate_batch_data_random(item, user, user_to_item_to_user, ui, item_to_user_to_item, iu, item_id, user_id, y,
                                batch_size):
     idx = np.arange(len(y))
@@ -426,12 +427,28 @@ model = tf.keras.Model(
 
 model.compile(loss='mse', optimizer=tf.optimizers.Adam(learning_rate=0.001), metrics=['mse'])
 
+best_val_mse = 1e+10
+final_test_mse = 1e+10
+
 for ep in range(50):
+    print(f'Starting epoch: {ep + 1}...')
     traingen = generate_batch_data_random(all_item_texts, all_user_texts, user_to_item_to_user, user_to_item,
                                           item_to_user_to_item, item_to_user, train_item_id, train_user_id, train_label,
                                           batch_size)
     valgen = generate_batch_data_random(all_item_texts, all_user_texts, user_to_item_to_user, user_to_item,
-                                        item_to_user_to_item, item_to_user, test_item_id, test_user_id, test_label, 512)
+                                        item_to_user_to_item, item_to_user, val_item_id, val_user_id, val_label,
+                                        512)
+    testgen = generate_batch_data_random(all_item_texts, all_user_texts, user_to_item_to_user, user_to_item,
+                                         item_to_user_to_item, item_to_user, test_item_id, test_user_id, test_label,
+                                         512)
     model.fit_generator(traingen, epochs=1, steps_per_epoch=len(train_item_id) // batch_size)
-    cr = model.evaluate_generator(valgen, steps=len(test_item_id) // 512)
-    print(cr)
+    val_results = model.evaluate_generator(valgen, steps=len(val_item_id) // 512)
+    test_results = model.evaluate_generator(testgen, steps=len(test_item_id) // 512)
+    if val_results[-1] < best_val_mse:
+        best_val_mse = val_results[-1]
+        final_test_mse = test_results[-1]
+    print(f'Val MSE: {val_results[-1]}, Test MSE: {test_results[-1]}')
+
+print('End training!')
+print(f'Best MSE: {final_test_mse}')
+
