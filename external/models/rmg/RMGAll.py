@@ -6,9 +6,6 @@ import random
 import argparse
 import pandas as pd
 
-random.seed(123)
-np.random.seed(123)
-
 nltk.download('punkt')
 
 parser = argparse.ArgumentParser(description="Run preprocessing for RMG.")
@@ -17,6 +14,9 @@ parser.add_argument('--batch_size', default=128, help='batch size')
 args = parser.parse_args()
 dataset = args.dataset
 batch_size = args.batch_size
+
+random.seed(123)
+np.random.seed(123)
 
 with open(f'../../../data/{dataset}/{dataset}_5.json', 'r') as f:
     rawdata = [JSONDecoder().decode(x) for x in f.readlines()]
@@ -81,8 +81,6 @@ for i in range(len(emb_mat)):
 emb_mat[0] = np.zeros(300, dtype='float32')
 emb_mat = np.array(emb_mat, dtype='float32')
 print(emb_mat.shape)
-
-np.save(f'../../../data/{dataset}/embed_vocabulary.npy', emb_mat)
 
 uir_triples = []
 for i in rawdata:
