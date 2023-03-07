@@ -6,7 +6,8 @@ import random
 import argparse
 import pandas as pd
 
-random.seed(42)
+random.seed(123)
+np.random.seed(123)
 
 nltk.download('punkt')
 
@@ -38,54 +39,52 @@ for x in word_dict:
         word_dict_freq[x] = [len(word_dict_freq), word_dict[x][1]]
 print(len(word_dict_freq), len(word_dict))
 
-embdict={}
-cnt=0
-with open('../../../data/glove.840B.300d.txt','rb')as f:
-    linenb=0
+embdict = {}
+cnt = 0
+with open('../../../data/glove.840B.300d.txt', 'rb') as f:
+    linenb = 0
     while True:
-        line=f.readline()
-        if len(line)==0:
+        line = f.readline()
+        if len(line) == 0:
             break
         line = line.split()
-        word=line[0].decode()
-        linenb+=1
+        word = line[0].decode()
+        linenb += 1
         if len(word) != 0:
-            emb=[float(x) for x in line[1:]]
+            emb = [float(x) for x in line[1:]]
             if word in word_dict_freq:
-                embdict[word]=emb
-                if cnt%100==0:
-                    print(cnt,linenb,word)
-                cnt+=1
+                embdict[word] = emb
+                if cnt % 100 == 0:
+                    print(cnt, linenb, word)
+                cnt += 1
 
-
-print(len(embdict),len(word_dict_freq))
+print(len(embdict), len(word_dict_freq))
 print(len(word_dict_freq))
 
+emb_mat = [0] * len(word_dict_freq)
+xp = np.zeros(300, dtype='float32')
 
-emb_mat=[0]*len(word_dict_freq)
-xp=np.zeros(300,dtype='float32')
-
-temp_emb=[]
+temp_emb = []
 for i in embdict.keys():
-    emb_mat[word_dict_freq[i][0]]=np.array(embdict[i],dtype='float32')
+    emb_mat[word_dict_freq[i][0]] = np.array(embdict[i], dtype='float32')
     temp_emb.append(emb_mat[word_dict_freq[i][0]])
-temp_emb=np.array(temp_emb,dtype='float32')
+temp_emb = np.array(temp_emb, dtype='float32')
 
-mu=np.mean(temp_emb, axis=0)
-Sigma=np.cov(temp_emb.T)
+mu = np.mean(temp_emb, axis=0)
+Sigma = np.cov(temp_emb.T)
 
-norm=np.random.multivariate_normal(mu, Sigma, 1)
+norm = np.random.multivariate_normal(mu, Sigma, 1)
 
 for i in range(len(emb_mat)):
-    if type(emb_mat[i])==int:
-        emb_mat[i]=np.reshape(norm, 300)
-emb_mat[0]=np.zeros(300,dtype='float32')
-emb_mat=np.array(emb_mat,dtype='float32')
+    if type(emb_mat[i]) == int:
+        emb_mat[i] = np.reshape(norm, 300)
+emb_mat[0] = np.zeros(300, dtype='float32')
+emb_mat = np.array(emb_mat, dtype='float32')
 print(emb_mat.shape)
 
 np.save(f'../../../data/{dataset}/embed_vocabulary.npy', emb_mat)
 
-uir_triples=[]
+uir_triples = []
 for i in rawdata:
     if i['reviewerID'] == 'unknown':
         print("unknown user id")
@@ -109,7 +108,7 @@ for i in rawdata:
         continue
 
 for i in range(len(uir_triples)):
-    uir_triples[i]['id']=i
+    uir_triples[i]['id'] = i
 
 MAX_SENT_LENGTH = 20
 MAX_SENTS = 10
@@ -121,16 +120,18 @@ data = pd.DataFrame(uir_triples)
 
 uidList, iidList = data['user'].unique().tolist(), data['item'].unique().tolist()
 
-user2id = dict((uid, i) for(i, uid) in enumerate(uidList))
-item2id = dict((iid, i) for(i, iid) in enumerate(iidList))
+user2id = dict((uid, i) for (i, uid) in enumerate(uidList))
+item2id = dict((iid, i) for (i, iid) in enumerate(iidList))
+id2user = dict((idx, value) for value, idx in user2id.items())
+id2item = dict((idx, value) for value, idx in item2id.items())
 uid = list(map(lambda x: user2id[x], data['user']))
 iid = list(map(lambda x: item2id[x], data['item']))
 data['user'] = uid
 data['item'] = iid
 
-train_np=np.load(f'../../../data/{dataset}/Train.npy')
-val_np=np.load(f'../../../data/{dataset}/Val.npy')
-test_np=np.load(f'../../../data/{dataset}/Test.npy')
+train_np = np.load(f'../../../data/{dataset}/Train.npy')
+val_np = np.load(f'../../../data/{dataset}/Val.npy')
+test_np = np.load(f'../../../data/{dataset}/Test.npy')
 
 train_uir = []
 val_uir = []
@@ -139,8 +140,8 @@ test_uir = []
 for row in train_np:
     train_uir.append({
         'text': data[(data['user'] == row[0]) & (data['item'] == row[1])]['text'].values,
-        'item': row[1],
-        'user': row[0],
+        'item': id2item[row[1]],
+        'user': id2user[row[0]],
         'id': data[(data['user'] == row[0]) & (data['item'] == row[1])]['id'].values[0],
         'label': data[(data['user'] == row[0]) & (data['item'] == row[1])]['label'].values[0]
     })
@@ -148,8 +149,8 @@ for row in train_np:
 for row in val_np:
     val_uir.append({
         'text': data[(data['user'] == row[0]) & (data['item'] == row[1])]['text'].values,
-        'item': row[1],
-        'user': row[0],
+        'item': id2item[row[1]],
+        'user': id2user[row[0]],
         'id': data[(data['user'] == row[0]) & (data['item'] == row[1])]['id'].values[0],
         'label': data[(data['user'] == row[0]) & (data['item'] == row[1])]['label'].values[0]
     })
@@ -157,8 +158,8 @@ for row in val_np:
 for row in test_np:
     test_uir.append({
         'text': data[(data['user'] == row[0]) & (data['item'] == row[1])]['text'].values,
-        'item': row[1],
-        'user': row[0],
+        'item': id2item[row[1]],
+        'user': id2user[row[0]],
         'id': data[(data['user'] == row[0]) & (data['item'] == row[1])]['id'].values[0],
         'label': data[(data['user'] == row[0]) & (data['item'] == row[1])]['label'].values[0]
     })
@@ -304,91 +305,95 @@ test_item_id = np.array(test_item_id, dtype='int32')
 test_user_id = np.array(test_user_id, dtype='int32')
 
 
-def generate_batch_data_random(item,user,user_to_item_to_user,ui,item_to_user_to_item,iu,item_id,user_id, y, batch_size):
+def generate_batch_data_random(item, user, user_to_item_to_user, ui, item_to_user_to_item, iu, item_id, user_id, y,
+                               batch_size):
     idx = np.arange(len(y))
     np.random.shuffle(idx)
-    batches = [idx[range(batch_size*i, min(len(y), batch_size*(i+1)))] for i in range(len(y)//batch_size+1)]
+    batches = [idx[range(batch_size * i, min(len(y), batch_size * (i + 1)))] for i in range(len(y) // batch_size + 1)]
 
     while (True):
         for i in batches:
-            yield ([item[item_id[i]],user[user_id[i]],user_to_item_to_user[user_id[i]],
-                    user_to_item[user_id[i]],item_to_user_to_item,item_to_user[item_id[i]],
-                    np.expand_dims(item_id[i],axis=1),np.expand_dims(user_id[i],axis=1)], y[i])
+            yield ([item[item_id[i]], user[user_id[i]], user_to_item_to_user[user_id[i]],
+                    user_to_item[user_id[i]], item_to_user_to_item, item_to_user[item_id[i]],
+                    np.expand_dims(item_id[i], axis=1), np.expand_dims(user_id[i], axis=1)], y[i])
+
 
 import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import tensorflow as tf
 
 sentence_input = tf.keras.layers.Input(shape=(MAX_SENT_LENGTH,), dtype='int32')
-embedding_layer = tf.keras.layers.Embedding(len(word_dict_freq), 300, weights=[emb_mat],trainable=True)
+embedding_layer = tf.keras.layers.Embedding(len(word_dict_freq), 300, weights=[emb_mat], trainable=True)
 
 embedded_sequences = tf.keras.layers.Dropout(0.2)(embedding_layer(sentence_input))
 
-word_cnn_fea = tf.keras.layers.Dropout(0.2)(tf.keras.layers.Convolution1D(filters=100, kernel_size=3,  padding='same', activation='relu', strides=1)(embedded_sequences))
+word_cnn_fea = tf.keras.layers.Dropout(0.2)(
+    tf.keras.layers.Convolution1D(filters=100, kernel_size=3, padding='same', activation='relu', strides=1)(
+        embedded_sequences))
 
-word_att = tf.keras.layers.Dense(100,activation='tanh')(word_cnn_fea)
+word_att = tf.keras.layers.Dense(100, activation='tanh')(word_cnn_fea)
 word_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(word_att))
 word_att = tf.keras.layers.Activation('softmax')(word_att)
-sent_emb=tf.keras.layers.Dot((1, 1))([word_cnn_fea, word_att])
+sent_emb = tf.keras.layers.Dot((1, 1))([word_cnn_fea, word_att])
 
 sent_encoder = tf.keras.Model([sentence_input], sent_emb)
 
-review_input = tf.keras.Input((MAX_SENTS,MAX_SENT_LENGTH,), dtype='int32')
+review_input = tf.keras.Input((MAX_SENTS, MAX_SENT_LENGTH,), dtype='int32')
 
 review_encoder = tf.keras.layers.TimeDistributed(sent_encoder)(review_input)
 
-sent_cnn_fea = tf.keras.layers.Dropout(0.2)(tf.keras.layers.Convolution1D(filters=100, kernel_size=3, padding='same', activation='relu', strides=1)(review_encoder))
+sent_cnn_fea = tf.keras.layers.Dropout(0.2)(
+    tf.keras.layers.Convolution1D(filters=100, kernel_size=3, padding='same', activation='relu', strides=1)(
+        review_encoder))
 
-sent_att = tf.keras.layers.Dense(100,activation='tanh')(sent_cnn_fea)
+sent_att = tf.keras.layers.Dense(100, activation='tanh')(sent_cnn_fea)
 sent_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(sent_att))
 word_att = tf.keras.layers.Activation('softmax')(sent_att)
-doc_emb=tf.keras.layers.Dot((1, 1))([sent_cnn_fea, word_att])
+doc_emb = tf.keras.layers.Dot((1, 1))([sent_cnn_fea, word_att])
 
 doc_encoder = tf.keras.Model([review_input], doc_emb)
 
-
-reviews_input_item = tf.keras.Input((MAX_REVIEW_ITEM,MAX_SENTS,MAX_SENT_LENGTH,), dtype='int32')
-reviews_input_user = tf.keras.Input((MAX_REVIEW_USER,MAX_SENTS,MAX_SENT_LENGTH,), dtype='int32')
+reviews_input_item = tf.keras.Input((MAX_REVIEW_ITEM, MAX_SENTS, MAX_SENT_LENGTH,), dtype='int32')
+reviews_input_user = tf.keras.Input((MAX_REVIEW_USER, MAX_SENTS, MAX_SENT_LENGTH,), dtype='int32')
 
 reviews_emb_item = tf.keras.layers.TimeDistributed(doc_encoder)(reviews_input_item)
 reviews_emb_user = tf.keras.layers.TimeDistributed(doc_encoder)(reviews_input_user)
 
-
-doc_att = tf.keras.layers.Dense(100,activation='tanh')(reviews_emb_item)
+doc_att = tf.keras.layers.Dense(100, activation='tanh')(reviews_emb_item)
 doc_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(doc_att))
 doc_att = tf.keras.layers.Activation('softmax')(doc_att)
-item_emb=tf.keras.layers.Dot((1, 1))([reviews_emb_item, doc_att])
+item_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_item, doc_att])
 
-doc_att_u = tf.keras.layers.Dense(100,activation='tanh')(reviews_emb_user)
+doc_att_u = tf.keras.layers.Dense(100, activation='tanh')(reviews_emb_user)
 doc_att_u = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(doc_att_u))
 doc_att_u = tf.keras.layers.Activation('softmax')(doc_att_u)
-user_emb=tf.keras.layers.Dot((1, 1))([reviews_emb_user, doc_att_u])
+user_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_user, doc_att_u])
 
-user_id =tf.keras.layers. Input(shape=(1,), dtype='int32')
+user_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 item_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 
-
-user_embedding= tf.keras.layers.Embedding(len(user_review_id),100,trainable=True)
-item_embedding = tf.keras.layers.Embedding(len(item_review_id), 100,trainable=True)
+user_embedding = tf.keras.layers.Embedding(len(user_review_id), 100, trainable=True)
+item_embedding = tf.keras.layers.Embedding(len(item_review_id), 100, trainable=True)
 
 user_item_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
 item_user_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
 
-user_item_user_ids = tf.keras.Input((MAX_NEIGHBOR,MAX_NEIGHBOR), dtype='int32')
-item_user_item_ids = tf.keras.Input((MAX_NEIGHBOR,MAX_NEIGHBOR), dtype='int32')
+user_item_user_ids = tf.keras.Input((MAX_NEIGHBOR, MAX_NEIGHBOR), dtype='int32')
+item_user_item_ids = tf.keras.Input((MAX_NEIGHBOR, MAX_NEIGHBOR), dtype='int32')
 
-user_item_embedding= user_embedding(user_item_ids)
-item_user_embedding= item_embedding(item_user_ids)
+user_item_embedding = user_embedding(user_item_ids)
+item_user_embedding = item_embedding(item_user_ids)
 
-ui_att = tf.keras.layers.Dense(100,activation='tanh')(user_item_embedding)
+ui_att = tf.keras.layers.Dense(100, activation='tanh')(user_item_embedding)
 ui_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(ui_att))
 ui_att = tf.keras.layers.Activation('softmax')(ui_att)
-ui_emb=tf.keras.layers.Dot((1, 1))([user_item_embedding, ui_att])
+ui_emb = tf.keras.layers.Dot((1, 1))([user_item_embedding, ui_att])
 
-iu_att = tf.keras.layers.Dense(100,activation='tanh')(item_user_embedding)
+iu_att = tf.keras.layers.Dense(100, activation='tanh')(item_user_embedding)
 iu_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(iu_att))
 iu_att_weight = tf.keras.layers.Activation('softmax')(iu_att)
-iu_emb=tf.keras.layers.Dot((1, 1))([item_user_embedding, iu_att_weight])
+iu_emb = tf.keras.layers.Dot((1, 1))([item_user_embedding, iu_att_weight])
 
 userencoder = tf.keras.Model([user_item_ids], ui_emb)
 itemencoder = tf.keras.Model([item_user_ids], iu_emb)
@@ -396,35 +401,38 @@ itemencoder = tf.keras.Model([item_user_ids], iu_emb)
 user_encoder = tf.keras.layers.TimeDistributed(userencoder)(user_item_user_ids)
 item_encoder = tf.keras.layers.TimeDistributed(itemencoder)(item_user_item_ids)
 
-ufactor=tf.keras.layers.concatenate([user_item_embedding,user_encoder])
-ifactor=tf.keras.layers.concatenate([item_user_embedding,item_encoder])
+ufactor = tf.keras.layers.concatenate([user_item_embedding, user_encoder])
+ifactor = tf.keras.layers.concatenate([item_user_embedding, item_encoder])
 
-un_att = tf.keras.layers.Dense(100,activation='tanh')(ufactor)
+un_att = tf.keras.layers.Dense(100, activation='tanh')(ufactor)
 un_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(un_att))
 un_att = tf.keras.layers.Activation('softmax')(un_att)
-user_emb_g=tf.keras.layers.Dot((1, 1))([ufactor, un_att])
+user_emb_g = tf.keras.layers.Dot((1, 1))([ufactor, un_att])
 
-in_att = tf.keras.layers.Dense(100,activation='tanh')(ifactor)
+in_att = tf.keras.layers.Dense(100, activation='tanh')(ifactor)
 in_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(in_att))
 in_att = tf.keras.layers.Activation('softmax')(in_att)
-item_emb_g=tf.keras.layers.Dot((1, 1))([ifactor, in_att])
+item_emb_g = tf.keras.layers.Dot((1, 1))([ifactor, in_att])
 
+user_embedding = tf.keras.layers.Flatten()(user_embedding(user_id))
+item_embedding = tf.keras.layers.Flatten()(item_embedding(item_id))
+factor_u = tf.keras.layers.concatenate([user_emb, user_embedding, user_emb_g])
+factor_i = tf.keras.layers.concatenate([item_emb, item_embedding, item_emb_g])
 
-user_embedding= tf.keras.layers.Flatten()(user_embedding(user_id))
-item_embedding= tf.keras.layers.Flatten()(item_embedding(item_id))
-factor_u=tf.keras.layers.concatenate([user_emb,user_embedding,user_emb_g])
-factor_i=tf.keras.layers.concatenate([item_emb,item_embedding,item_emb_g])
+preds = tf.keras.layers.Dense(1, activation='relu')(tf.multiply(factor_u, factor_i))
 
-preds=tf.keras.layers.Dense(1,activation='relu')(tf.multiply(factor_u,factor_i))
+model = tf.keras.Model(
+    [reviews_input_item, reviews_input_user, user_item_user_ids, user_item_ids, item_user_item_ids, item_user_ids,
+     item_id, user_id], preds)
 
-model = tf.keras.Model([reviews_input_item,reviews_input_user,user_item_user_ids,user_item_ids,item_user_item_ids,item_user_ids,item_id,user_id], preds)
+model.compile(loss='mse', optimizer=tf.optimizers.Adam(learning_rate=0.001), metrics=['mse'])
 
-model.compile(loss='mse', optimizer=tf.optimizers.Adam(lr=0.001), metrics=['mse'])
-
-
-for ep in range(1):
-    traingen=generate_batch_data_random(all_item_texts,all_user_texts,user_to_item_to_user,user_to_item,item_to_user_to_item,item_to_user,train_item_id,train_user_id,train_label,batch_size)
-    valgen=generate_batch_data_random(all_item_texts,all_user_texts,user_to_item_to_user,user_to_item,item_to_user_to_item,item_to_user,test_item_id,test_user_id,test_label,512)
-    model.fit_generator(traingen, epochs=1,steps_per_epoch=len(train_item_id)//batch_size)
-    cr = model.evaluate_generator(valgen, steps=len(test_item_id)//512)
-    print(np.sqrt(cr))
+for ep in range(50):
+    traingen = generate_batch_data_random(all_item_texts, all_user_texts, user_to_item_to_user, user_to_item,
+                                          item_to_user_to_item, item_to_user, train_item_id, train_user_id, train_label,
+                                          batch_size)
+    valgen = generate_batch_data_random(all_item_texts, all_user_texts, user_to_item_to_user, user_to_item,
+                                        item_to_user_to_item, item_to_user, test_item_id, test_user_id, test_label, 512)
+    model.fit_generator(traingen, epochs=1, steps_per_epoch=len(train_item_id) // batch_size)
+    cr = model.evaluate_generator(valgen, steps=len(test_item_id) // 512)
+    print(cr)
