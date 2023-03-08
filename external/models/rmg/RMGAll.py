@@ -327,13 +327,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 sentence_input = tf.keras.layers.Input(shape=(MAX_SENT_LENGTH,), dtype='int32')
 embedding_layer = tf.keras.layers.Embedding(len(word_dict_freq), 300, weights=[emb_mat], trainable=True)
 
-embedded_sequences = tf.keras.layers.Dropout(0.2)(embedding_layer(sentence_input))
+embedded_sequences = tf.keras.layers.Dropout(0.5)(embedding_layer(sentence_input))
 
-word_cnn_fea = tf.keras.layers.Dropout(0.2)(
-    tf.keras.layers.Convolution1D(filters=8, kernel_size=3, padding='same', activation='relu', strides=1)(
+word_cnn_fea = tf.keras.layers.Dropout(0.5)(
+    tf.keras.layers.Convolution1D(filters=16, kernel_size=3, padding='same', activation='relu', strides=1)(
         embedded_sequences))
 
-word_att = tf.keras.layers.Dense(8, activation='tanh')(word_cnn_fea)
+word_att = tf.keras.layers.Dense(16, activation='tanh')(word_cnn_fea)
 word_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(word_att))
 word_att = tf.keras.layers.Activation('softmax')(word_att)
 sent_emb = tf.keras.layers.Dot((1, 1))([word_cnn_fea, word_att])
@@ -344,11 +344,11 @@ review_input = tf.keras.Input((MAX_SENTS, MAX_SENT_LENGTH,), dtype='int32')
 
 review_encoder = tf.keras.layers.TimeDistributed(sent_encoder)(review_input)
 
-sent_cnn_fea = tf.keras.layers.Dropout(0.2)(
-    tf.keras.layers.Convolution1D(filters=8, kernel_size=3, padding='same', activation='relu', strides=1)(
+sent_cnn_fea = tf.keras.layers.Dropout(0.5)(
+    tf.keras.layers.Convolution1D(filters=16, kernel_size=3, padding='same', activation='relu', strides=1)(
         review_encoder))
 
-sent_att = tf.keras.layers.Dense(8, activation='tanh')(sent_cnn_fea)
+sent_att = tf.keras.layers.Dense(16, activation='tanh')(sent_cnn_fea)
 sent_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(sent_att))
 word_att = tf.keras.layers.Activation('softmax')(sent_att)
 doc_emb = tf.keras.layers.Dot((1, 1))([sent_cnn_fea, word_att])
@@ -361,12 +361,12 @@ reviews_input_user = tf.keras.Input((MAX_REVIEW_USER, MAX_SENTS, MAX_SENT_LENGTH
 reviews_emb_item = tf.keras.layers.TimeDistributed(doc_encoder)(reviews_input_item)
 reviews_emb_user = tf.keras.layers.TimeDistributed(doc_encoder)(reviews_input_user)
 
-doc_att = tf.keras.layers.Dense(8, activation='tanh')(reviews_emb_item)
+doc_att = tf.keras.layers.Dense(16, activation='tanh')(reviews_emb_item)
 doc_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(doc_att))
 doc_att = tf.keras.layers.Activation('softmax')(doc_att)
 item_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_item, doc_att])
 
-doc_att_u = tf.keras.layers.Dense(8, activation='tanh')(reviews_emb_user)
+doc_att_u = tf.keras.layers.Dense(16, activation='tanh')(reviews_emb_user)
 doc_att_u = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(doc_att_u))
 doc_att_u = tf.keras.layers.Activation('softmax')(doc_att_u)
 user_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_user, doc_att_u])
@@ -386,12 +386,12 @@ item_user_item_ids = tf.keras.Input((MAX_NEIGHBOR, MAX_NEIGHBOR), dtype='int32')
 user_item_embedding = item_embedding(user_item_ids)
 item_user_embedding = user_embedding(item_user_ids)
 
-ui_att = tf.keras.layers.Dense(8, activation='tanh')(user_item_embedding)
+ui_att = tf.keras.layers.Dense(16, activation='tanh')(user_item_embedding)
 ui_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(ui_att))
 ui_att = tf.keras.layers.Activation('softmax')(ui_att)
 ui_emb = tf.keras.layers.Dot((1, 1))([user_item_embedding, ui_att])
 
-iu_att = tf.keras.layers.Dense(8, activation='tanh')(item_user_embedding)
+iu_att = tf.keras.layers.Dense(16, activation='tanh')(item_user_embedding)
 iu_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(iu_att))
 iu_att_weight = tf.keras.layers.Activation('softmax')(iu_att)
 iu_emb = tf.keras.layers.Dot((1, 1))([item_user_embedding, iu_att_weight])
@@ -405,12 +405,12 @@ item_encoder = tf.keras.layers.TimeDistributed(userencoder)(item_user_item_ids)
 ufactor = tf.keras.layers.concatenate([user_item_embedding, user_encoder])
 ifactor = tf.keras.layers.concatenate([item_user_embedding, item_encoder])
 
-un_att = tf.keras.layers.Dense(8, activation='tanh')(ufactor)
+un_att = tf.keras.layers.Dense(16, activation='tanh')(ufactor)
 un_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(un_att))
 un_att = tf.keras.layers.Activation('softmax')(un_att)
 user_emb_g = tf.keras.layers.Dot((1, 1))([ufactor, un_att])
 
-in_att = tf.keras.layers.Dense(8, activation='tanh')(ifactor)
+in_att = tf.keras.layers.Dense(16, activation='tanh')(ifactor)
 in_att = tf.keras.layers.Flatten()(tf.keras.layers.Dense(1)(in_att))
 in_att = tf.keras.layers.Activation('softmax')(in_att)
 item_emb_g = tf.keras.layers.Dot((1, 1))([ifactor, in_att])
