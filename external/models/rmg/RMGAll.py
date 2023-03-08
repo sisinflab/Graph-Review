@@ -380,8 +380,8 @@ user_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_user, doc_att_u])
 user_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 item_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 
-user_embedding = tf.keras.layers.Embedding(len(user_review_id) + 1, 100, trainable=True)
-item_embedding = tf.keras.layers.Embedding(len(item_review_id) + 1, 100, trainable=True)
+user_embedding = tf.keras.layers.Embedding(len(user_review_id) + 2, 100, trainable=True)
+item_embedding = tf.keras.layers.Embedding(len(item_review_id) + 2, 100, trainable=True)
 
 user_item_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
 item_user_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
