@@ -114,10 +114,16 @@ for i in rawdata:
 for i in range(len(uir_triples)):
     uir_triples[i]['id'] = i
 
-MAX_SENT_LENGTH = 20
-MAX_SENTS = 10
-MAX_REVIEW_USER = 13
-MAX_REVIEW_ITEM = 24
+# MAX_SENT_LENGTH = 20
+# MAX_SENTS = 10
+# MAX_REVIEW_USER = 13
+# MAX_REVIEW_ITEM = 24
+# MAX_NEIGHBOR = 75
+
+MAX_SENT_LENGTH = 40
+MAX_SENTS = 15
+MAX_REVIEW_USER = 40
+MAX_REVIEW_ITEM = 50
 MAX_NEIGHBOR = 75
 
 data = pd.DataFrame(uir_triples)
@@ -374,8 +380,8 @@ user_emb = tf.keras.layers.Dot((1, 1))([reviews_emb_user, doc_att_u])
 user_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 item_id = tf.keras.layers.Input(shape=(1,), dtype='int32')
 
-user_embedding = tf.keras.layers.Embedding(len(user_review_id) + 2, 100, trainable=True)
-item_embedding = tf.keras.layers.Embedding(len(item_review_id) + 2, 100, trainable=True)
+user_embedding = tf.keras.layers.Embedding(len(user_review_id), 100, trainable=True)
+item_embedding = tf.keras.layers.Embedding(len(item_review_id), 100, trainable=True)
 
 user_item_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
 item_user_ids = tf.keras.Input((MAX_NEIGHBOR,), dtype='int32')
